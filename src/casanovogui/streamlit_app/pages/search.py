@@ -1,19 +1,21 @@
 import os
 import tempfile
 import uuid
-import streamlit as st
 from datetime import date
+
+import streamlit as st
 import pandas as pd
-from simple_db import SearchMetadata
-from utils import refresh_de_key, get_database_session
+
+from casanovogui.simple_db import SearchMetadata
+from casanovogui.streamlit_app.utils import refresh_de_key, get_database_session
 
 PAGE_KEY = 'SEARCH'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
 SUPPORTED_FILES = ['.mztab']
 
 # Set up the Streamlit page configuration
-st.set_page_config(page_title=f"Search", layout="wide")
-st.title(f"Search")
+st.set_page_config(page_title="Search", layout="wide")
+st.title("Search")
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)

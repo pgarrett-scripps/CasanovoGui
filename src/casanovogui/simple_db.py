@@ -10,8 +10,7 @@ from typing import Type, TypeVar, Generic, List, Optional, Literal, Dict
 
 from tinydb import TinyDB, Query
 from pydantic import BaseModel
-from datetime import datetime
-from datetime import date
+from datetime import datetime, date
 
 # Define a generic type variable for the Pydantic model
 T = TypeVar('T', bound=BaseModel)
@@ -398,8 +397,6 @@ class CasanovoDB:
                 self.searches_manager.update_file_metadata(search_metadata)
 
     def delete_search(self, search_id: str):
-        # delete search and log file
-        search_metadata = self.searches_manager.get_file_metadata(search_id)
         search_path = self.searches_manager.retrieve_file_path(search_id)
 
         log_path = search_path.replace('.mztab', '.log')
@@ -408,70 +405,3 @@ class CasanovoDB:
 
         if os.path.exists(log_path):
             os.remove(log_path)
-
-
-# Usage Example
-if __name__ == "__main__":
-    from datetime import date
-
-    # Initialize the CasanovoDB
-    db = CasanovoDB('file_storage', verbose=True)
-
-    db.reset_db()
-
-    spectra_file_path = r'C:\Users\Ty\PycharmProjects\CasanovoGui\sample_preprocessed_spectra.mgf'
-    model_file_path = r'C:\Users\Ty\PycharmProjects\CasanovoGui\casanovo_nontryptic.ckpt'
-
-    # Add a model file
-    model_metadata = ModelFileMetadata(
-        file_id=str(uuid.uuid4()),
-        file_name='model_1',
-        description='Casanovo model',
-        file_type='ckpt',
-        date=date.today(),
-        tags=['model', 'casanovo']
-    )
-
-    model_id = db.models_manager.add_file(model_file_path, model_metadata)
-    print(f"Model file saved as: {model_id}")
-
-    # Add a spectra file
-    spectra_metadata = SpectraFileMetadata(
-        file_id=str(uuid.uuid4()),
-        file_name='spectra_1',
-        description='Preprocessed spectra',
-        file_type='mgf',
-        date=date.today(),
-        tags=['spectra', 'preprocessed'],
-        enzyme='trypsin',
-        instrument='Orbitrap'
-    )
-
-    spectra_id = db.spectra_files_manager.add_file(spectra_file_path, spectra_metadata)
-    print(f"Spectra file saved as: {spectra_id}")
-
-    for i in range(2):
-        # Initial search metadata
-        search_metadata = SearchMetadata(
-            file_id=str(uuid.uuid4()),
-            file_name="Simple Search",
-            description='Search results',
-            file_type='mztab',
-            date=date.today(),
-            tags=['search', 'results'],
-            model_id=model_id,
-            spectra_id=spectra_id,
-            status='pending'
-        )
-
-        print(f"Search metadata: {search_metadata}")
-
-        # Perform a search
-        search_id = db.search(search_metadata)
-        print(f"Search results saved as: {search_id}")
-
-    # Wait for the queue to be processed
-    db.queue.join()
-    print("All searches completed.")
-
-

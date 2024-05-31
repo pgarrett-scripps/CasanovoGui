@@ -1,11 +1,13 @@
 import os
 import tempfile
 import uuid
-import streamlit as st
 from datetime import date
+
+import streamlit as st
 import pandas as pd
-from simple_db import ModelFileMetadata
-from utils import refresh_de_key, get_database_session
+
+from casanovogui.simple_db import ModelFileMetadata
+from casanovogui.streamlit_app.utils import refresh_de_key, get_database_session
 
 PAGE_KEY = 'MODELS'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"

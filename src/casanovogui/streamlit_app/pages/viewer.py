@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from utils import generate_annonated_spectra_plotly, get_database_session
+from casanovogui.streamlit_app.utils import generate_annonated_spectra_plotly, get_database_session
 import plotly.express as px
 from pyteomics import mgf
 import peptacular as pt

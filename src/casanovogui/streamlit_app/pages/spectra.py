@@ -1,24 +1,26 @@
 import os
 import tempfile
 import uuid
-import streamlit as st
 from datetime import date
+
+import streamlit as st
 import pandas as pd
-from simple_db import CasanovoDB, SpectraFileMetadata
-from utils import  refresh_de_key, DATA_FOLDER
+
+from casanovogui.simple_db import SpectraFileMetadata
+from casanovogui.streamlit_app.utils import refresh_de_key, get_database_session
 
 PAGE_KEY = 'FILES'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
 SUPPORTED_FILES = ['.mzml', '.mgf']
 
 # Set up the Streamlit page configuration
-st.set_page_config(page_title=f"Spectra", layout="wide")
-st.title(f"Spectra")
+st.set_page_config(page_title="Spectra", layout="wide")
+st.title("Spectra")
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
 
-db = CasanovoDB(DATA_FOLDER)
+db = get_database_session()
 
 # Get all file metadata entries
 entries = db.spectra_files_manager.get_all_metadata()
@@ -27,7 +29,6 @@ df = pd.DataFrame(entries)
 
 
 def batch_upload_option(uploaded_files):
-
     st.subheader("Batch Metadata", divider='blue')
     st.caption("Files will be uploaded in batch, and the metadata will be the same for all files.")
     file_name = st.text_input("File Suffix", value='', disabled=False)

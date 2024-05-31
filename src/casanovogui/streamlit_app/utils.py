@@ -1,40 +1,22 @@
 import uuid
-from enum import Enum
-import streamlit as st
-
-from simple_db import CasanovoDB
 from typing import List
 
-import numpy as np
 import streamlit as st
 import peptacular as pt
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
+from casanovogui.simple_db import CasanovoDB
+
 DATA_FOLDER = "data"
-
-class DialogState(Enum):
-    ADD_OPEN = "add_open"
-    ADD_SUBMIT = "add_submit"
-    ADD_CANCEL = "add_cancel"
-    EDIT_OPEN = "edit_open"
-    EDIT_SUBMIT = "edit_submit"
-    EDIT_CANCEL = "edit_cancel"
-    DELETE_OPEN = "delete_open"
-    DELETE_SUBMIT = "delete_submit"
-    DELETE_CANCEL = "delete_cancel"
-    DOWNLOAD_OPEN = "download_open"
-    DOWNLOAD_SUBMIT = "download_submit"
-    DOWNLOAD_CANCEL = "download_cancel"
-    BASELINE = "baseline"
-
 
 
 def refresh_de_key(de_key: str):
     if de_key in st.session_state:
         del st.session_state[de_key]
     st.session_state[de_key] = str(uuid.uuid4())
+
 
 @st.cache_resource
 def get_database_session():
@@ -47,13 +29,10 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
                                       intensity_spectra: List[float]):
     COLOR_DICT = {'b': 'blue', 'y': 'red', 'a': 'green', 'x': 'purple', 'c': 'orange', 'z': 'brown', "": 'grey'}
 
-
     c1, c2 = st.columns([7, 3])
     peptide = c1.text_input("Peptide", peptide)
     max_charge = c2.number_input("Max Charge", value=charge, min_value=1, max_value=charge)
     charges = list(range(1, max_charge + 1))
-
-
 
     # Get params
     c1, c2 = st.columns(2)
@@ -71,12 +50,11 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
     peak_assignment = c4.selectbox("Peak Assignment", ["closest", "largest"])
 
     c1, c2 = st.columns(2)
-    min_mz = c1.number_input("Min M/Z", value=min(mz_spectra)-10, format="%.4f", step=1.0)
-    max_mz = c2.number_input("Max M/Z", value=max(mz_spectra)+10, format="%.4f", step=1.0)
+    min_mz = c1.number_input("Min M/Z", value=min(mz_spectra) - 10, format="%.4f", step=1.0)
+    max_mz = c2.number_input("Max M/Z", value=max(mz_spectra) + 10, format="%.4f", step=1.0)
 
-
-
-    fragments = pt.fragment(peptide, ion_types, charges, water_loss=water_loss, ammonia_loss=ammonia_loss, monoisotopic=mass_type=='monoisotopic')
+    fragments = pt.fragment(peptide, ion_types, charges, water_loss=water_loss,
+                            ammonia_loss=ammonia_loss, monoisotopic=mass_type == 'monoisotopic')
     fragment_df = pd.DataFrame([f.to_dict() for f in fragments])
     fragment_df['color'] = fragment_df['ion_type'].apply(lambda x: COLOR_DICT.get(x, 'grey'))
 
@@ -127,7 +105,7 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
             x=tmp_df['mz'].values,
             y=tmp_df['intensity'].values,
             mode='markers',
-            marker=dict(color=color,size=1),
+            marker=dict(color=color, size=1),
             text=tmp_df['label'],
 
             opacity=0.5 if color == 'grey' else 1,
@@ -149,7 +127,6 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
         # Add the Scatter plot to the figure
         spectra_figs.append(tmp_fig)
 
-
     fragment_figs = []
     # Loop through each unique color in the fragment dataframe
     for color in fragment_df['color'].unique():
@@ -164,7 +141,7 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
             marker=dict(color=color, size=1),
             text=tmp_df['label'],
             name=f'Fragments ({color})',
-            error_y = dict(
+            error_y=dict(
                 type='data',
                 symmetric=False,
                 arrayminus=-tmp_df['intensity'].values,
@@ -224,9 +201,9 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
         height=800,
         title_text="Spectra, Fragments, and Error Analysis",
         showlegend=False,
-    xaxis=dict(
-        range=[min_mz, max_mz]  # Replace min_x_value and max_x_value with your desired values
-    )
+        xaxis=dict(
+            range=[min_mz, max_mz]  # Replace min_x_value and max_x_value with your desired values
+        )
     )
 
     # Display the plot
@@ -234,7 +211,6 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
 
     annotation = pt.parse(peptide)
     peptide_length = len(annotation)
-    amino_acid_labels = {i: aa for i, aa in enumerate(annotation.sequence, start=1)}
 
     # Separate theoretical and experimental data
     theo_df = fragment_df
@@ -242,7 +218,6 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
 
     theo_df['column_label'] = theo_df.apply(lambda x: f'{"+" * x.charge}{x.ion_type}', axis=1)
     expt_df['column_label'] = expt_df.apply(lambda x: f'{"+" * x.charge}{x.ion_type}', axis=1)
-
 
     # remove losses
     theo_df = theo_df[theo_df['loss'] == 0]
@@ -274,7 +249,6 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
         if any(x in col for x in ['x', 'y', 'z']):
             theo_df[col] = theo_df[col][::-1].reset_index(drop=True)
             expt_df[col] = expt_df[col][::-1].reset_index(drop=True)
-
 
     # Generate fill colors and text colors based on COLOR_DICT
     # Generate fill colors and text colors based on COLOR_DICT
@@ -335,5 +309,3 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
-
