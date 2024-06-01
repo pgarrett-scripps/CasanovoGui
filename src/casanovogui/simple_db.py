@@ -4,7 +4,6 @@ import queue
 import shutil
 import subprocess
 import threading
-import uuid
 import warnings
 from typing import Type, TypeVar, Generic, List, Optional, Literal, Dict
 
@@ -252,25 +251,33 @@ class CasanovoDB:
                                                             verbose,
                                                             )
         self.verbose = verbose
+        self.stop_event = threading.Event()  # Event to signal the thread to stop
 
         self.queue = queue.Queue()
         self.current_task = None
         self.queue_thread = threading.Thread(target=self._process_queue)
-        self.queue_thread.daemon = False  # Set to True to stop the thread when the main thread exits
+        self.queue_thread.daemon = True  # Set to True to stop the thread when the main thread exits
         self.queue_thread.start()
-
         self.update_unfinished_searches()
 
     def _process_queue(self):
-        while True:
-            task = self.queue.get()
-            if task is None:
-                break
+        while not self.stop_event.is_set():
             try:
+                task = self.queue.get(timeout=1)  # Wait for a task with a timeout
+                if task is None:
+                    break
                 self._run_search(task['model_id'], task['spectra_id'], task['search_id'], task['search_metadata'])
+                self.queue.task_done()
+            except queue.Empty:
+                continue
             except Exception as e:
                 print(f"Error in search: {e}")
-            self.queue.task_done()
+                self.queue.task_done()
+
+    def stop(self):
+        self.stop_event.set()
+        self.queue.put(None)  # Ensure the thread exits the loop
+        self.queue_thread.join()
 
     def _run_search(self, model_path: str, spectra_path: str, output_path: str, search_metadata: SearchMetadata):
         # Update status to 'running'

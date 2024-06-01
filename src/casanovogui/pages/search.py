@@ -6,8 +6,8 @@ from datetime import date
 import streamlit as st
 import pandas as pd
 
-from casanovogui.simple_db import SearchMetadata
-from casanovogui.streamlit_app.utils import refresh_de_key, get_database_session
+from simple_db import SearchMetadata
+from utils import refresh_de_key, get_database_session
 
 PAGE_KEY = 'SEARCH'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"

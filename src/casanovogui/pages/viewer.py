@@ -1,9 +1,10 @@
 import pandas as pd
 import streamlit as st
-from casanovogui.streamlit_app.utils import generate_annonated_spectra_plotly, get_database_session
 import plotly.express as px
 from pyteomics import mgf
 import peptacular as pt
+
+from utils import generate_annonated_spectra_plotly, get_database_session
 
 st.set_page_config(page_title="Results Viewer", layout="wide")
 st.title('Results Viewer')
