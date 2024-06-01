@@ -194,8 +194,8 @@ class SpectraFileMetadata(GeneralFileMetadata):
 
 
 class SearchMetadata(GeneralFileMetadata):
-    model_id: Optional[str]
-    spectra_id: Optional[str]
+    model: Optional[str]
+    spectra: Optional[str]
     status: str = Literal['pending', 'running', 'completed', 'failed']
 
 
@@ -326,13 +326,13 @@ class CasanovoDB:
             print(f'CasanovoDB: {message}')
 
     def search(self, metadata: SearchMetadata) -> str:
-        if metadata.model_id is None:
+        if metadata.model is None:
             model_path = None
         else:
-            model_path = self.models_manager.retrieve_file_path(metadata.model_id)
+            model_path = self.models_manager.retrieve_file_path(metadata.model)
 
         self._log(f"Model path: {model_path}")
-        spectra_path = self.spectra_files_manager.retrieve_file_path(metadata.spectra_id)
+        spectra_path = self.spectra_files_manager.retrieve_file_path(metadata.spectra)
         self._log(f"Spectra path: {spectra_path}")
         search_id = metadata.file_id
 

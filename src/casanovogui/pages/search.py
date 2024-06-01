@@ -73,8 +73,8 @@ def single_upload(uploaded_file):
             file_type=file_type,
             date=date_input,
             tags=tags,
-            model_id=model_id,
-            spectra_id=spectra_id,
+            model=model_id,
+            spectra=spectra_id,
             status="completed"
         )
 
@@ -110,8 +110,8 @@ def batch_upload(uploaded_files):
                 file_type=file_extension,
                 date=date_input,
                 tags=tags,
-                model_id=None,
-                spectra_id=None,
+                model=None,
+                spectra=None,
                 status="completed"
             )
 
@@ -184,8 +184,8 @@ def add_option():
             file_type=file_type,
             date=date_input,
             tags=tags,
-            model_id=model_id,
-            spectra_id=spectra_id,
+            model=model_id,
+            spectra=spectra_id,
             status="Pending"
         )
 
@@ -287,8 +287,8 @@ rename_map = {
     "description": "Description",
     "date": "Date",
     "tags": "Tags",
-    "model_id": "Model ID",
-    "spectra_id": "Spectra ID",
+    "model": "Model ID",
+    "spectra": "Spectra ID",
     "status": "Status"
 }
 
@@ -300,8 +300,14 @@ df['🗑️'] = False
 df['📥'] = False
 df['👁️'] = False
 
+if 'Model ID' not in df.columns:
+    df['Model ID'] = None
+
+if 'Spectra ID' not in df.columns:
+    df['Spectra ID'] = None
+
 df['Model Name'] = df['Model ID'].apply(lambda x: db.models_manager.get_file_metadata(x).file_name if x else None)
-df['Spectra Name'] = df['Spectra ID'].apply(lambda x: db.spectra_files_manager.get_file_metadata(x).file_name)
+df['Spectra Name'] = df['Spectra ID'].apply(lambda x: db.spectra_files_manager.get_file_metadata(x).file_name if x else None)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,

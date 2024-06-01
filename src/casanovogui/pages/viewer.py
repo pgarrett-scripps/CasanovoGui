@@ -95,7 +95,7 @@ if selected_search_id is None:
     st.stop()
 
 search_metadata = manager.get_file_metadata(selected_search_id)
-spectra_id = search_metadata.spectra_id
+spectra_id = search_metadata.spectra
 spectra_metadata = db.spectra_files_manager.get_file_metadata(spectra_id)
 spectra_path = db.spectra_files_manager.retrieve_file_path(spectra_id)
 
