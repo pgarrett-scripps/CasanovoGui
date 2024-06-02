@@ -40,6 +40,9 @@ def batch_upload_option(uploaded_files):
     enzyme = c1.text_input("Enzyme")
     instrument = c2.text_input("Instrument")
 
+    annotated = st.checkbox("Annotated")
+
+
     if c1.button("Submit", type='primary', use_container_width=True, disabled=len(uploaded_files) == 0):
         for uploaded_file in uploaded_files:
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -58,6 +61,7 @@ def batch_upload_option(uploaded_files):
                 tags=tags,
                 enzyme=enzyme,
                 instrument=instrument,
+                annotated=annotated
             )
 
             db.spectra_files_manager.add_file(tmp_path, metadata)
@@ -87,6 +91,9 @@ def single_option(uploaded_file):
     enzyme = c1.text_input("Enzyme")
     instrument = c2.text_input("Instrument")
 
+    annotated = st.checkbox("Annotated")
+
+
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=uploaded_file is None):
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
@@ -102,6 +109,7 @@ def single_option(uploaded_file):
             tags=tags,
             enzyme=enzyme,
             instrument=instrument,
+            annotated=annotated
         )
 
         db.spectra_files_manager.add_file(tmp_path, metadata)
@@ -137,6 +145,8 @@ def edit_option(entry: SpectraFileMetadata):
     c1, c2 = st.columns([1, 1])
     entry.enzyme = c1.text_input("Enzyme", value=entry.enzyme)
     entry.instrument = c2.text_input("Instrument", value=entry.instrument)
+
+    entry.annotated = st.checkbox("Annotated", value=entry.annotated)
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=False):
@@ -204,7 +214,8 @@ rename_map = {
     "date": "Date",
     "tags": "Tags",
     "enzyme": "Enzyme",
-    "instrument": "Instrument"
+    "instrument": "Instrument",
+    "annotated": "Annotated"
 }
 
 # Customize the dataframe for display
@@ -218,7 +229,7 @@ df['📥'] = False
 edited_df = st.data_editor(df,
                            hide_index=True,
                            column_order=["✏️", "🗑️", "📥", "Name", "Description", "Date", "Tags", "Enzyme",
-                                         "Instrument"],
+                                         "Instrument", "Annotated"],
                            column_config={
                                "✏️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "🗑️": st.column_config.CheckboxColumn(disabled=False, width='small'),
@@ -228,7 +239,8 @@ edited_df = st.data_editor(df,
                                "Date": st.column_config.DateColumn(disabled=True, width='small'),
                                "Tags": st.column_config.ListColumn(width='small'),
                                "Enzyme": st.column_config.TextColumn(disabled=True, width='small'),
-                               "Instrument": st.column_config.TextColumn(disabled=True, width='small')
+                               "Instrument": st.column_config.TextColumn(disabled=True, width='small'),
+                                "Annotated": st.column_config.CheckboxColumn(disabled=True, width='small')
 
                            },
                            key=st.session_state[PAGE_DE_KEY],

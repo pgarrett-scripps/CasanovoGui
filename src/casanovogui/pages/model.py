@@ -14,8 +14,8 @@ PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
 SUPPORTED_FILES = ['.ckpt']
 
 # Set up the Streamlit page configuration
-st.set_page_config(page_title=f"Models", layout="wide")
-st.title(f"Models")
+st.set_page_config(page_title=f"Model", layout="wide")
+st.title(f"Model")
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
@@ -29,6 +29,75 @@ manager = db.models_manager
 entries = manager.get_all_metadata()
 entries = map(lambda e: e.dict(), entries)
 df = pd.DataFrame(entries)
+
+
+@st.experimental_dialog("Train Model")
+def train_option():
+    # select multiple annotated files
+    st.write("Select multiple annotated files to train the model.")
+
+    st.subheader('Metadata', divider='blue')
+    c1, c2 = st.columns([7, 2])
+    file_name = c1.text_input("File Name", value='', disabled=False)
+    file_type = c2.text_input("File Type", value='ckpt', disabled=True)
+
+    description = st.text_area("Description")
+    date_input = st.date_input("Date", value=date.today())
+    tags = st.text_input("Tags (comma-separated)").split(",")
+
+
+    st.subheader('Select Spectra', divider='blue')
+
+    spectra_metadata = db.spectra_files_manager.get_all_metadata()
+
+    spectra_df = pd.DataFrame(map(lambda e: e.dict(), spectra_metadata))
+    spectra_df = spectra_df[spectra_df['annotated'] == True]
+    selection = st.dataframe(spectra_df, on_select='rerun', selection_mode='multi-row', use_container_width=True)
+    selected_rows = list(selection['selection']['rows'])
+    spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist()
+
+    if len(selected_rows) == 0:
+        st.warning("No annotated spectra selected.")
+    else:
+        st.info(f"{len(selected_rows)} annotated spectra selected.")
+
+    st.subheader('Select Config', divider='blue')
+    config_metadata = db.config_manager.get_all_metadata()
+    config_df = pd.DataFrame(map(lambda e: e.dict(), config_metadata))
+    selection = st.dataframe(config_df, on_select='rerun', selection_mode='single-row', use_container_width=True)
+    selected_row = selection['selection']['rows'][0] if len(selection['selection']['rows']) > 0 else None
+    config_id = config_df.iloc[selected_row]['file_id'] if selected_row is not None else None
+    if selected_row is None:
+        st.warning("No config selected. Using default config.")
+    else:
+        config_name = config_df.iloc[selected_row]['file_name']
+        st.info("Config selected: " + config_name)
+
+    c1, c2 = st.columns([1, 1])
+    if c1.button("Submit", type='primary', use_container_width=True, disabled=len(spectra_ids) == 0):
+
+        # db.train(self, spectra_ids: list[str], config_id: Optional[str], model_metadata: ModelFileMetadata) -> str:
+        db.train(spectra_ids, config_id, ModelFileMetadata(
+            file_id=str(uuid.uuid4()),
+            file_name=file_name,
+            description=description,
+            file_type=file_type,
+            date=date_input,
+            tags=tags,
+            source='trained',
+            status='pending',
+            config=config_id,
+        ))
+
+        refresh_de_key(PAGE_DE_KEY)
+        st.rerun()
+
+    if c2.button("Cancel", use_container_width=True):
+        refresh_de_key(PAGE_DE_KEY)
+        st.rerun()
+
+
+
 
 @st.experimental_dialog("Add Model")
 def add_option():
@@ -59,7 +128,10 @@ def add_option():
             description=description,
             file_type=file_type,
             date=date_input,
-            tags=tags
+            tags=tags,
+            source='uploaded',
+            status='completed',
+            config=None,
         )
 
         manager.add_file(tmp_path, metadata)
@@ -93,7 +165,6 @@ def edit_option(entry: ModelFileMetadata):
     if c2.button("Cancel", use_container_width=True):
         refresh_de_key(PAGE_DE_KEY)
         st.rerun()
-
 
 
 @st.experimental_dialog("Delete Model")
@@ -132,10 +203,12 @@ def download_option(file_id: str):
 
 
 # Display buttons for add and refresh
-c1, c2 = st.columns([1, 1])
+c1, c2, c3 = st.columns([2, 2, 1])
 if c1.button("Add Model", use_container_width=True, type='primary'):
     add_option()
-if c2.button("Refresh", use_container_width=True):
+if c2.button("Train Model", use_container_width=True):
+    train_option()
+if c3.button("Refresh", use_container_width=True):
     refresh_de_key(PAGE_DE_KEY)
     st.rerun()
 
@@ -149,7 +222,10 @@ rename_map = {
     "file_name": "Name",
     "description": "Description",
     "date": "Date",
-    "tags": "Tags"
+    "tags": "Tags",
+    "source": "Source",
+    "status": "Status",
+    "config": "Config"
 }
 
 # Customize the dataframe for display
@@ -158,19 +234,25 @@ df['Date'] = pd.to_datetime(df['Date'])
 df["✏️"] = False
 df['🗑️'] = False
 df['📥'] = False
+df['👁️'] = False
+
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,
                            hide_index=True,
-                           column_order=["✏️", "🗑️", "📥", "Name", "Description", "Date", "Tags"],
+                           column_order=["✏️", "🗑️", "📥", "👁️", "Name", "Description", "Date", "Tags", "Source", "Status", "Config"],
                            column_config={
                                "✏️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "🗑️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "📥": st.column_config.CheckboxColumn(disabled=False, width='small'),
+                                 "👁️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "Name": st.column_config.TextColumn(disabled=True, width='medium'),
                                "Description": st.column_config.TextColumn(disabled=True, width='medium'),
                                "Date": st.column_config.DateColumn(disabled=True, width='small'),
-                               "Tags": st.column_config.ListColumn(width='small')
+                               "Tags": st.column_config.ListColumn(width='small'),
+                                 "Source": st.column_config.TextColumn(disabled=True, width='small'),
+                                    "Status": st.column_config.TextColumn(disabled=True, width='small'),
+                                    "Config": st.column_config.TextColumn(disabled=True, width='small')
                            },
                            key=st.session_state[PAGE_DE_KEY],
                            use_container_width=True)
@@ -197,6 +279,34 @@ elif len(edited_rows) == 1:
 
     if "📥" in edited_row and edited_row["📥"] is True:
         download_option(df.iloc[row_index]["ID"])
+
+    if "👁️" in edited_row and edited_row["👁️"] is True:
+        entry_to_edit = df.iloc[row_index].to_dict()
+        entry = manager.get_file_metadata(entry_to_edit["ID"])
+
+        if 'viewed_file' not in st.session_state:
+            st.session_state['viewed_file'] = entry.file_id
+
+        refresh_de_key(PAGE_DE_KEY)
+        st.rerun()
+
 else:
     refresh_de_key(PAGE_DE_KEY)
     st.rerun()
+
+
+if 'viewed_file' in st.session_state:
+    entry = manager.get_file_metadata(st.session_state['viewed_file'])
+    file_path = manager.retrieve_file_path(entry.file_id)
+    log_file = file_path.replace('.ckpt', '.log')
+
+    del st.session_state['viewed_file']
+
+    if not os.path.exists(log_file):
+        st.write("No log file found.")
+        st.stop()
+
+    st.subheader(f"Name: {entry.file_name}.log", divider='blue')
+    with open(log_file, "rb") as file:
+        st.code(file.read().decode(), language='txt')
+

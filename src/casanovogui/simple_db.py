@@ -89,7 +89,7 @@ class FileManager(Generic[T]):
         if self.verbose:
             print(f'FileManager[{self.model.__name__}]: {message}')
 
-    def add_file(self, file_path: str, metadata: T, copy: bool = True) -> str:
+    def add_file(self, file_path: Optional[str], metadata: T, copy: bool = True) -> str:
         file_id = metadata.file_id
         dest_path = os.path.join(self.storage_dir, file_id + '.' + metadata.file_type)
 
@@ -158,8 +158,6 @@ class FileManager(Generic[T]):
     def retrieve_file_path(self, file_id: str) -> str:
         with self.lock:
             src_path = os.path.join(self.storage_dir, file_id + f'.{self.get_file_metadata(file_id).file_type}')
-            if not os.path.exists(src_path):
-                raise FileNotFoundError(f"File '{file_id}' not found in storage.")
         return src_path
 
     def reset_db(self):
@@ -185,18 +183,25 @@ class GeneralFileMetadata(BaseModel):
 
 
 class ModelFileMetadata(GeneralFileMetadata):
-    pass
+    source: Literal['uploaded', 'trained']
+    status: Literal['pending', 'running', 'completed', 'failed']
+    config: Optional[str]
 
 
 class SpectraFileMetadata(GeneralFileMetadata):
     enzyme: str
     instrument: str
+    annotated: bool
 
 
 class SearchMetadata(GeneralFileMetadata):
     model: Optional[str]
     spectra: Optional[str]
-    status: str = Literal['pending', 'running', 'completed', 'failed']
+    status: Literal['pending', 'running', 'completed', 'failed']
+
+
+class ConfigFileMetadata(GeneralFileMetadata):
+    pass
 
 
 class CasanovoDB:
@@ -209,15 +214,21 @@ class CasanovoDB:
                  models_storage_folder: str = 'models',
                  models_table_name: str = 'models',
                  spectra_files_storage_folder: str = 'files',
+                 config_storage_folder: str = 'config',
                  spectra_files_table_name: str = 'files',
                  searches_storage_folder: str = 'searches',
                  searches_table_name: str = 'searches',
+                 config_table_name: str = 'config',
                  verbose: bool = False):
 
         assert len(
-            set([models_table_name, spectra_files_table_name, searches_table_name])) == 3, "Table names must be unique"
-        assert len(set([models_storage_folder, spectra_files_storage_folder,
-                        searches_storage_folder])) == 3, "Storage folders must be unique"
+            set([models_table_name, spectra_files_table_name, searches_table_name, config_table_name])) == 4, \
+            "Table names must be unique"
+
+        assert len(
+            set([models_storage_folder, spectra_files_storage_folder, searches_storage_folder,
+                 config_storage_folder])) == 4, \
+            "Storage folder names must be unique"
 
         # if storage folder does not exist, create it
         os.makedirs(data_folder, exist_ok=True)
@@ -226,6 +237,7 @@ class CasanovoDB:
         models_storage_folder = os.path.join(data_folder, models_storage_folder, )
         spectra_files_storage_folder = os.path.join(data_folder, spectra_files_storage_folder)
         searches_storage_folder = os.path.join(data_folder, searches_storage_folder)
+        config_storage_folder = os.path.join(data_folder, config_storage_folder)
 
         meta_data_lock = threading.Lock()
 
@@ -250,6 +262,14 @@ class CasanovoDB:
                                                             meta_data_lock,
                                                             verbose,
                                                             )
+        self.config_manager = FileManager[ConfigFileMetadata](ConfigFileMetadata,
+                                                              config_storage_folder,
+                                                              self.metadata_db_path,
+                                                              config_table_name,
+                                                              meta_data_lock,
+                                                              verbose,
+                                                              )
+
         self.verbose = verbose
         self.stop_event = threading.Event()  # Event to signal the thread to stop
 
@@ -263,15 +283,32 @@ class CasanovoDB:
     def _process_queue(self):
         while not self.stop_event.is_set():
             try:
-                task = self.queue.get(timeout=1)  # Wait for a task with a timeout
+                task = self.queue.get()  # Wait for a task with a timeout
                 if task is None:
                     break
-                self._run_search(task['model_id'], task['spectra_id'], task['search_id'], task['search_metadata'])
+
+                if task['target'] == 'train':
+                    self._run_train(
+                        spectra_paths=task['spectra_paths'],
+                        config_path=task['config_path'],
+                        metadata=task['metadata']
+                    )
+                elif task['target'] == 'search':
+                    self._run_search(
+                        model_path=task['model_path'],
+                        spectra_path=task['spectra_path'],
+                        config_path=task['config_path'],
+                        metadata=task['metadata']
+                    )
+                else:
+                    raise ValueError(f"Invalid task target: {task['target']}")
+
                 self.queue.task_done()
+
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"Error in search: {e}")
+                print(f"Error processing task: {e}")
                 self.queue.task_done()
 
     def stop(self):
@@ -279,33 +316,38 @@ class CasanovoDB:
         self.queue.put(None)  # Ensure the thread exits the loop
         self.queue_thread.join()
 
-    def _run_search(self, model_path: str, spectra_path: str, output_path: str, search_metadata: SearchMetadata):
+    def _run_search(self, model_path: Optional[str], spectra_path: str, config_path: Optional[str],
+                    metadata: SearchMetadata):
         # Update status to 'running'
-        search_metadata.status = 'running'
-        self.searches_manager.update_file_metadata(search_metadata)
-        final_result_path = os.path.join(self.searches_manager.storage_dir, output_path)
+        metadata.status = 'running'
+        self.searches_manager.update_file_metadata(metadata)
+        search_path = self.searches_manager.retrieve_file_path(metadata.file_id).strip(f'.{metadata.file_type}')
 
         # Command to run Casanovo
         command = [
             'casanovo',
             'sequence',
-            spectra_path,
-            '--output', final_result_path,
-            '--verbosity', 'info'
+            spectra_path,  # This is the required PEAK_PATH
+            '--output', search_path,
+            '--verbosity', 'debug'
         ]
 
-        if model_path is not None:
+        if model_path:
             command.extend(['--model', model_path])
 
-        # Execute the command
-        res = subprocess.run(command, check=False)
+        if config_path:
+            command.extend(['--config', config_path])
 
-        if res.returncode != 0:
-            search_metadata.status = 'failed'
-        else:
-            search_metadata.status = 'completed'
+        try:
+            # Execute the command
+            subprocess.run(command, check=True)
+            # Update status to 'completed' if successful
+            metadata.status = 'completed'
+        except subprocess.CalledProcessError as e:
+            # Update status to 'failed' if there is an error
+            metadata.status = 'failed'
 
-        self.searches_manager.update_file_metadata(search_metadata)
+        self.searches_manager.update_file_metadata(metadata)
 
         """            
         Causes issues with logger.... cant fix it :(
@@ -321,11 +363,63 @@ class CasanovoDB:
         logger.info("DONE!")
         """
 
+    def _run_train(self, spectra_paths: list[str], config_path: Optional[str], metadata: ModelFileMetadata):
+
+        # Update status to 'running'
+        metadata.status = 'running'
+        self.models_manager.update_file_metadata(metadata)
+
+        output_path = self.models_manager.retrieve_file_path(metadata.file_id).strip(f'.{metadata.file_type}')
+        # Construct the command for running Casanovo
+        command = [
+            "casanovo", "sequence",
+            *spectra_paths,
+            "--output", output_path,
+            "--verbosity", "debug"
+        ]
+
+        if config_path:
+            command.extend(["--config", config_path])
+
+        print(command)
+        # Run the command
+        try:
+            subprocess.run(command, check=True)
+            # Update status to 'completed' if successful
+            metadata.status = 'completed'
+        except subprocess.CalledProcessError as e:
+            # Update status to 'failed' if there is an error
+            metadata.status = 'failed'
+
+        # Update the metadata with the final status
+        self.models_manager.update_file_metadata(metadata)
+
     def _log(self, message: str):
         if self.verbose:
             print(f'CasanovoDB: {message}')
 
-    def search(self, metadata: SearchMetadata) -> str:
+    def train(self, spectra_ids: list[str], config_id: Optional[str], metadata: ModelFileMetadata) -> str:
+
+        # save model metadata to db
+        self.models_manager.add_file(None, metadata, copy=False)
+
+        spectra_paths = [self.spectra_files_manager.retrieve_file_path(spectra_id) for spectra_id in spectra_ids]
+        config_path = self.config_manager.retrieve_file_path(config_id) if config_id else None
+
+        model_path = self.models_manager.retrieve_file_path(metadata.file_id)
+        output_path = model_path.strip('.ckpt')
+
+        self.queue.put({
+            'target': 'train',
+            'spectra_paths': spectra_paths,
+            'config_path': config_path,
+            'output_path': output_path,
+            'metadata': metadata
+        })
+
+        return metadata.file_id
+
+    def search(self, metadata: SearchMetadata, config_id: Optional[str]) -> str:
         if metadata.model is None:
             model_path = None
         else:
@@ -338,15 +432,18 @@ class CasanovoDB:
 
         self._log(f"Running search with model: {model_path}, spectra: {spectra_path}, search_id: {search_id}")
 
+        config_path = self.config_manager.retrieve_file_path(config_id) if config_id else None
+
         # Add initial metadata with 'pending' status, and file_path as None since it's not yet created
         self.searches_manager.add_file(None, metadata, copy=False)
 
         # Add the search task to the queue
         self.queue.put({
-            'model_id': model_path,
-            'spectra_id': spectra_path,
-            'search_id': search_id,
-            'search_metadata': metadata
+            'target': 'search',
+            'model_path': model_path,
+            'spectra_path': spectra_path,
+            'config_path': config_path,
+            'metadata': metadata
         })
 
         return search_id
@@ -399,7 +496,7 @@ class CasanovoDB:
     def update_unfinished_searches(self):
         for search_id in self.searches_manager.get_all_file_ids():
             search_metadata = self.searches_manager.get_file_metadata(search_id)
-            if search_metadata.status == 'running':
+            if search_metadata.status != 'completed':
                 search_metadata.status = 'failed'
                 self.searches_manager.update_file_metadata(search_metadata)
 

@@ -186,10 +186,10 @@ def add_option():
             tags=tags,
             model=model_id,
             spectra=spectra_id,
-            status="Pending"
+            status="pending"
         )
 
-        db.search(metadata)
+        db.search(metadata, None)
         refresh_de_key(PAGE_DE_KEY)
         st.rerun()
     if c2.button("Cancel", use_container_width=True):
