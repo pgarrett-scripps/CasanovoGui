@@ -5,6 +5,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from pyteomics import mgf
+import peptacular as pt
 
 from utils import generate_annonated_spectra_plotly, get_database_session
 
@@ -14,75 +15,6 @@ st.title('Results Viewer')
 selected_search_id = st.session_state.get('viewer_Search_id', None)
 db = get_database_session()
 manager = db.searches_manager
-
-
-def convert_casanovo_sequence(sequence: str) -> str:
-    """
-    Converts a sequence with modifications to a proforma2.0 compatible sequence.
-    :param sequence: The sequence to be converted.
-    :type sequence: str
-    :return: Proforma2.0 compatable sequence.
-    :rtype: str
-
-    """
-    new_sequence = []
-    in_mod = False  # Tracks if we are within a modification
-    is_nterm = False  # Tracks if the current modification is at the N-terminus
-
-    for index, char in enumerate(sequence):
-        if char in {'+', '-'}:
-            # Check if it's at the start (N-terminal)
-            is_nterm = len(new_sequence) == 0
-
-            # Start a new modification block
-            new_sequence.append('[')
-            new_sequence.append(char)
-            in_mod = True
-        elif in_mod and char.isalpha():
-            # End the modification block
-            new_sequence.append(']')
-
-            if is_nterm:
-                # Add a dash if it's an N-terminal modification
-                new_sequence.append('-')
-                is_nterm = False
-
-            # Add the current character and close modification
-            in_mod = False
-            new_sequence.append(char)
-        else:
-            # Add regular characters
-            new_sequence.append(char)
-
-    # Close any unclosed modification at the end of the sequence
-    if in_mod:
-        new_sequence.append(']')
-
-    return ''.join(new_sequence)
-
-
-def ppm_error(theo: float, expt: float, precision: Optional[int] = None) -> float:
-    """
-    Calculate the parts per million (ppm) error between two values.
-
-    :param theo: The theoretical value.
-    :type theo: float
-    :param expt: The experimental value.
-    :type expt: float
-    :param precision: The precision of the ppm error. Default is None.
-    :type precision: int | None
-
-    :return: The parts per million error.
-    :rtype: float
-
-    """
-
-    ppm_error = ((expt - theo) / theo) * 1e6
-
-    if precision is not None:
-        return round(ppm_error, precision)
-
-    return ppm_error
 
 class MGF_Index(mgf.MGF):
     def get_spectrum_by_index(self, index: int) -> dict:
@@ -140,13 +72,13 @@ def get_search_df(search_id):
     # spectra_ref: ms_run[1]:index=118 (fix?)
     search_df['ref_index'] = search_df['spectra_ref'].str.extract(r'index=(\d+)').astype(int)
 
-    search_df['proforma_sequence'] = search_df['sequence'].apply(convert_casanovo_sequence)
+    search_df['proforma_sequence'] = search_df['sequence'].apply(pt.convert_casanovo_sequence)
     search_df['calc_mass_to_charge'] = search_df['calc_mass_to_charge'].astype(float)
     search_df['exp_mass_to_charge'] = search_df['exp_mass_to_charge'].astype(float)
 
-    search_df['ppm_error'] = search_df.apply(lambda x: ppm_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']),
+    search_df['ppm_error'] = search_df.apply(lambda x: pt.ppm_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']),
                                              axis=1)
-    search_df['dalton_error'] = search_df.apply(lambda x: x['calc_mass_to_charge'] - x['exp_mass_to_charge'], axis=1)
+    search_df['dalton_error'] = search_df.apply(lambda x: pt.dalton_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']), axis=1)
 
     rename_map = {
         "proforma_sequence": "Sequence",
