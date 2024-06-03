@@ -1,17 +1,15 @@
-# This page should show the current processes
-
 import streamlit as st
+import torch
 
-from simple_db import CasanovoDB
-from utils import DATA_FOLDER
+st.title("Casanovo Gui")
 
-db = CasanovoDB(DATA_FOLDER)
+st.markdown("Welcome to the Casanovo Gui. This is a simple web interface to interact with Casanovo.")
 
-st.title("Processes")
+st.header("Check if GPU is available")
+st.caption("This is a simple check to see if a GPU is available.")
+with st.echo():
+    if torch.cuda.is_available():
+        st.write("GPU is available")
+    else:
+        st.write("GPU is not available")
 
-processes = db.get_queued_tasks()
-
-st.write(db.queue.qsize())
-
-for process in processes:
-    st.write(process)

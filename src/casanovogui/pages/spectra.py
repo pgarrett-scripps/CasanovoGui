@@ -120,6 +120,7 @@ def single_option(uploaded_file):
         refresh_de_key(PAGE_DE_KEY)
         st.rerun()
 
+
 @st.experimental_dialog("Add Files")
 def add_option():
     uploaded_files = st.file_uploader("Upload File", type=SUPPORTED_FILES, accept_multiple_files=True)

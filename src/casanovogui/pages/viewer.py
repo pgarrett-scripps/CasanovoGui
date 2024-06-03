@@ -1,19 +1,88 @@
+import os.path
+from typing import Optional
+
 import pandas as pd
 import streamlit as st
 import plotly.express as px
 from pyteomics import mgf
-import peptacular as pt
 
 from utils import generate_annonated_spectra_plotly, get_database_session
 
 st.set_page_config(page_title="Results Viewer", layout="wide")
 st.title('Results Viewer')
 
-
 selected_search_id = st.session_state.get('viewer_Search_id', None)
 db = get_database_session()
 manager = db.searches_manager
 
+
+def convert_casanovo_sequence(sequence: str) -> str:
+    """
+    Converts a sequence with modifications to a proforma2.0 compatible sequence.
+    :param sequence: The sequence to be converted.
+    :type sequence: str
+    :return: Proforma2.0 compatable sequence.
+    :rtype: str
+
+    """
+    new_sequence = []
+    in_mod = False  # Tracks if we are within a modification
+    is_nterm = False  # Tracks if the current modification is at the N-terminus
+
+    for index, char in enumerate(sequence):
+        if char in {'+', '-'}:
+            # Check if it's at the start (N-terminal)
+            is_nterm = len(new_sequence) == 0
+
+            # Start a new modification block
+            new_sequence.append('[')
+            new_sequence.append(char)
+            in_mod = True
+        elif in_mod and char.isalpha():
+            # End the modification block
+            new_sequence.append(']')
+
+            if is_nterm:
+                # Add a dash if it's an N-terminal modification
+                new_sequence.append('-')
+                is_nterm = False
+
+            # Add the current character and close modification
+            in_mod = False
+            new_sequence.append(char)
+        else:
+            # Add regular characters
+            new_sequence.append(char)
+
+    # Close any unclosed modification at the end of the sequence
+    if in_mod:
+        new_sequence.append(']')
+
+    return ''.join(new_sequence)
+
+
+def ppm_error(theo: float, expt: float, precision: Optional[int] = None) -> float:
+    """
+    Calculate the parts per million (ppm) error between two values.
+
+    :param theo: The theoretical value.
+    :type theo: float
+    :param expt: The experimental value.
+    :type expt: float
+    :param precision: The precision of the ppm error. Default is None.
+    :type precision: int | None
+
+    :return: The parts per million error.
+    :rtype: float
+
+    """
+
+    ppm_error = ((expt - theo) / theo) * 1e6
+
+    if precision is not None:
+        return round(ppm_error, precision)
+
+    return ppm_error
 
 class MGF_Index(mgf.MGF):
     def get_spectrum_by_index(self, index: int) -> dict:
@@ -27,7 +96,6 @@ class MGF_Index(mgf.MGF):
 
                 s_line_index += 1
 
-
     def __getitem__(self, index: int) -> dict:
         return self.get_spectrum_by_index(index)
 
@@ -40,6 +108,7 @@ def get_spectrum_by_index(mgf_file, index) -> dict:
     with open(mgf_file) as f:
         mgf_reader = read_mgf_index_file(f)
         return mgf_reader[index]
+
 
 def casanovo_to_df(file):
     header, data, intro = None, [], []
@@ -60,17 +129,22 @@ def casanovo_to_df(file):
 def get_search_df(search_id):
     search_path = db.searches_manager.retrieve_file_path(search_id)
 
+    if search_path is None or not os.path.exists(search_path):
+        st.error('Search file not found')
+        st.error('Search could have failed or is still bring processed. Please try again later.')
+        st.stop()
+
     with open(search_path) as f:
         search_df, intro = casanovo_to_df(f)
 
     # spectra_ref: ms_run[1]:index=118 (fix?)
     search_df['ref_index'] = search_df['spectra_ref'].str.extract(r'index=(\d+)').astype(int)
 
-    search_df['proforma_sequence'] = search_df['sequence'].apply(pt.convert_casanovo_sequence)
+    search_df['proforma_sequence'] = search_df['sequence'].apply(convert_casanovo_sequence)
     search_df['calc_mass_to_charge'] = search_df['calc_mass_to_charge'].astype(float)
     search_df['exp_mass_to_charge'] = search_df['exp_mass_to_charge'].astype(float)
 
-    search_df['ppm_error'] = search_df.apply(lambda x: pt.ppm_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']),
+    search_df['ppm_error'] = search_df.apply(lambda x: ppm_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']),
                                              axis=1)
     search_df['dalton_error'] = search_df.apply(lambda x: x['calc_mass_to_charge'] - x['exp_mass_to_charge'], axis=1)
 
@@ -125,9 +199,9 @@ if filter_by_best_peptide:
 st.subheader('Search Results', divider=True)
 st.caption('Select a point to view the spectrum, or use the lass or box tool to select multiple points')
 
-
 fig = px.scatter(search_df, x='PPM Error', y='Score',
-                 hover_data=['Sequence', 'Charge', 'Experimental m/z', 'Theoretical m/z', 'Retention Time', 'Dalton Error',
+                 hover_data=['Sequence', 'Charge', 'Experimental m/z', 'Theoretical m/z', 'Retention Time',
+                             'Dalton Error',
                              'PPM Error'])
 
 selection = st.plotly_chart(fig, on_select='rerun')
@@ -138,7 +212,7 @@ if selected_indices is not None:
 
 selection = st.dataframe(search_df, selection_mode='single-row', on_select='rerun', hide_index=True,
                          column_order=['Sequence', 'Charge', 'Score', 'Experimental m/z', 'Theoretical m/z',
-                                       'Retention Time','Dalton Error', 'PPM Error'],
+                                       'Retention Time', 'Dalton Error', 'PPM Error'],
                          use_container_width=True)
 selected_index = selection['selection']['rows'][0] if selection['selection']['rows'] else None
 
@@ -150,7 +224,6 @@ elif len(search_df) == 1:
     selected_row = search_df.iloc[0]
 
 if selected_index is not None:
-
     #selected_index
     selected_spectrum = get_spectrum_by_index(spectra_path, selected_index)
     #selected_spectrum
@@ -163,4 +236,3 @@ if selected_index is not None:
     st.subheader(f'Spectra Viewer: {peptide}/{charge}', divider=True)
 
     generate_annonated_spectra_plotly(peptide, charge, mz_spectra, intensity_spectra)
-

@@ -30,6 +30,7 @@ entries = manager.get_all_metadata()
 entries = map(lambda e: e.dict(), entries)
 df = pd.DataFrame(entries)
 
+
 def single_upload(uploaded_file):
     base_file_name, file_extension = os.path.splitext(uploaded_file.name)
     file_extension = file_extension.lstrip(".")
@@ -138,7 +139,6 @@ def upload_option():
 
 @st.experimental_dialog("New Search")
 def add_option():
-
     st.subheader("Search Metadata", divider='blue')
 
     c1, c2 = st.columns([8, 2])
@@ -166,30 +166,32 @@ def add_option():
     st.subheader("Select Spectra", divider='blue')
     spectra_ids = db.spectra_files_manager.get_all_metadata()
     df = pd.DataFrame(map(lambda e: e.dict(), spectra_ids))
-    selection = st.dataframe(df, selection_mode='single-row', on_select='rerun', hide_index=True)
-    selected_index = selection['selection']['rows'][0] if selection['selection']['rows'] else None
-    if selected_index is None:
-        st.warning("Please select a spectra file.")
+    selection = st.dataframe(df, selection_mode='multi-row', on_select='rerun', hide_index=True)
+    selected_indexes = selection['selection']['rows'] if len(selection['selection']['rows']) > 0 else []
+    if len(selected_indexes) == 0:
+        st.warning("Please select one or more spectra.")
     else:
-        spectra_id = spectra_ids[selected_index].file_id
-        spectra_name = spectra_ids[selected_index].file_name
-        st.info(f"Selected Spectra: {spectra_name}")
+        selected_spectra_ids = [spectra_ids[i].file_id for i in selected_indexes]
+        selected_spectra_names = [spectra_ids[i].file_name for i in selected_indexes]
+        st.info(f"Selected {len(selected_spectra_ids)} spectra!")
 
     c1, c2 = st.columns([1, 1])
-    if c1.button("Submit", type='primary', use_container_width=True, disabled=not spectra_id):
-        metadata = SearchMetadata(
-            file_id=str(uuid.uuid4()),
-            file_name=file_name,
-            description=description,
-            file_type=file_type,
-            date=date_input,
-            tags=tags,
-            model=model_id,
-            spectra=spectra_id,
-            status="pending"
-        )
+    if c1.button("Submit", type='primary', use_container_width=True, disabled=len(spectra_ids) == 0):
 
-        db.search(metadata, None)
+        for selected_spectra_id in selected_spectra_ids:
+            metadata = SearchMetadata(
+                file_id=str(uuid.uuid4()),
+                file_name=file_name,
+                description=description,
+                file_type=file_type,
+                date=date_input,
+                tags=tags,
+                model=model_id,
+                spectra=selected_spectra_id,
+                status="pending"
+            )
+
+            db.search(metadata, None)
         refresh_de_key(PAGE_DE_KEY)
         st.rerun()
     if c2.button("Cancel", use_container_width=True):
@@ -199,7 +201,6 @@ def add_option():
 
 @st.experimental_dialog("Edit Search Metadata")
 def edit_option(entry: SearchMetadata):
-
     st.subheader("Search Metadata", divider='blue')
     c1, c2 = st.columns([8, 2])
     entry.file_name = c1.text_input("File Name", value=entry.file_name, disabled=False)
@@ -268,7 +269,7 @@ def download_option(file_id: str):
 
 
 # Display buttons for add and refresh
-c1, c2, c3 = st.columns([2,2,1])
+c1, c2, c3 = st.columns([2, 2, 1])
 if c1.button("New Search", use_container_width=True, type='primary'):
     add_option()
 if c2.button("Refresh", use_container_width=True):
@@ -307,7 +308,8 @@ if 'Spectra ID' not in df.columns:
     df['Spectra ID'] = None
 
 df['Model Name'] = df['Model ID'].apply(lambda x: db.models_manager.get_file_metadata(x).file_name if x else None)
-df['Spectra Name'] = df['Spectra ID'].apply(lambda x: db.spectra_files_manager.get_file_metadata(x).file_name if x else None)
+df['Spectra Name'] = df['Spectra ID'].apply(
+    lambda x: db.spectra_files_manager.get_file_metadata(x).file_name if x else None)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,
