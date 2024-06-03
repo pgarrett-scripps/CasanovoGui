@@ -282,18 +282,21 @@ class CasanovoDB:
 
     def _process_queue(self):
         while not self.stop_event.is_set():
+            self.current_task = None
             try:
                 task = self.queue.get()  # Wait for a task with a timeout
                 if task is None:
                     break
 
                 if task['target'] == 'train':
+                    self.current_task = task
                     self._run_train(
                         spectra_paths=task['spectra_paths'],
                         config_path=task['config_path'],
                         metadata=task['metadata']
                     )
                 elif task['target'] == 'search':
+                    self.current_task = task
                     self._run_search(
                         model_path=task['model_path'],
                         spectra_path=task['spectra_path'],

@@ -45,13 +45,13 @@ def train_option():
     date_input = st.date_input("Date", value=date.today())
     tags = st.text_input("Tags (comma-separated)").split(",")
 
-
     st.subheader('Select Spectra', divider='blue')
 
     spectra_metadata = db.spectra_files_manager.get_all_metadata()
 
     spectra_df = pd.DataFrame(map(lambda e: e.dict(), spectra_metadata))
-    spectra_df = spectra_df[spectra_df['annotated'] == True]
+    if len(spectra_df) > 0:
+        spectra_df = spectra_df[spectra_df['annotated'] == True]
     selection = st.dataframe(spectra_df, on_select='rerun', selection_mode='multi-row', use_container_width=True)
     selected_rows = list(selection['selection']['rows'])
     spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist()
@@ -75,7 +75,6 @@ def train_option():
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=len(spectra_ids) == 0):
-
         # db.train(self, spectra_ids: list[str], config_id: Optional[str], model_metadata: ModelFileMetadata) -> str:
         db.train(spectra_ids, config_id, ModelFileMetadata(
             file_id=str(uuid.uuid4()),
@@ -97,8 +96,6 @@ def train_option():
         st.rerun()
 
 
-
-
 @st.experimental_dialog("Add Model")
 def add_option():
     uploaded_file = st.file_uploader("Upload Model", type=SUPPORTED_FILES)
@@ -117,7 +114,6 @@ def add_option():
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=not uploaded_file):
-
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(uploaded_file.getbuffer())
             tmp_path = tmp.name
@@ -145,7 +141,6 @@ def add_option():
 
 @st.experimental_dialog("Edit Model Metadata")
 def edit_option(entry: ModelFileMetadata):
-
     st.subheader("Model Metadata", divider='blue')
 
     c1, c2 = st.columns([7, 2])
@@ -216,7 +211,6 @@ if df.empty:
     st.write("No entries found.")
     st.stop()
 
-
 rename_map = {
     "file_id": "ID",
     "file_name": "Name",
@@ -236,23 +230,23 @@ df['🗑️'] = False
 df['📥'] = False
 df['👁️'] = False
 
-
 # Display the editable dataframe
 edited_df = st.data_editor(df,
                            hide_index=True,
-                           column_order=["✏️", "🗑️", "📥", "👁️", "Name", "Description", "Date", "Tags", "Source", "Status", "Config"],
+                           column_order=["✏️", "🗑️", "📥", "👁️", "Name", "Description", "Date", "Tags", "Source",
+                                         "Status", "Config"],
                            column_config={
                                "✏️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "🗑️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "📥": st.column_config.CheckboxColumn(disabled=False, width='small'),
-                                 "👁️": st.column_config.CheckboxColumn(disabled=False, width='small'),
+                               "👁️": st.column_config.CheckboxColumn(disabled=False, width='small'),
                                "Name": st.column_config.TextColumn(disabled=True, width='medium'),
                                "Description": st.column_config.TextColumn(disabled=True, width='medium'),
                                "Date": st.column_config.DateColumn(disabled=True, width='small'),
                                "Tags": st.column_config.ListColumn(width='small'),
-                                 "Source": st.column_config.TextColumn(disabled=True, width='small'),
-                                    "Status": st.column_config.TextColumn(disabled=True, width='small'),
-                                    "Config": st.column_config.TextColumn(disabled=True, width='small')
+                               "Source": st.column_config.TextColumn(disabled=True, width='small'),
+                               "Status": st.column_config.TextColumn(disabled=True, width='small'),
+                               "Config": st.column_config.TextColumn(disabled=True, width='small')
                            },
                            key=st.session_state[PAGE_DE_KEY],
                            use_container_width=True)
@@ -294,7 +288,6 @@ else:
     refresh_de_key(PAGE_DE_KEY)
     st.rerun()
 
-
 if 'viewed_file' in st.session_state:
     entry = manager.get_file_metadata(st.session_state['viewed_file'])
     file_path = manager.retrieve_file_path(entry.file_id)
@@ -309,4 +302,3 @@ if 'viewed_file' in st.session_state:
     st.subheader(f"Name: {entry.file_name}.log", divider='blue')
     with open(log_file, "rb") as file:
         st.code(file.read().decode(), language='txt')
-

@@ -53,8 +53,9 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
     min_mz = c1.number_input("Min M/Z", value=min(mz_spectra) - 10, format="%.4f", step=1.0)
     max_mz = c2.number_input("Max M/Z", value=max(mz_spectra) + 10, format="%.4f", step=1.0)
 
-    fragments = pt.fragment(peptide, ion_types, charges, water_loss=water_loss,
-                            ammonia_loss=ammonia_loss, monoisotopic=mass_type == 'monoisotopic')
+    fragments = pt.fragment(peptide, ion_types, charges, monoisotopic=mass_type == 'monoisotopic')
+    # Not available in current version of peptacular
+    #water_loss=water_loss, ammonia_loss=ammonia_loss
     fragment_df = pd.DataFrame([f.to_dict() for f in fragments])
     fragment_df['color'] = fragment_df['ion_type'].apply(lambda x: COLOR_DICT.get(x, 'grey'))
 
