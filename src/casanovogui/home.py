@@ -10,8 +10,7 @@ st.title("Casanovo Gui")
 
 st.markdown("Welcome to the Casanovo Gui. This is a simple web interface to interact with Casanovo.")
 
-st.header("Check if GPU is available")
-st.caption("This is a simple check to see if a GPU is available.")
+st.subheader("GPU Availability", divider='blue')
 with st.echo():
     if torch.cuda.is_available():
         st.write("GPU is available")
@@ -26,5 +25,29 @@ st.write(db.current_task)
 
 st.caption("Queued Tasks")
 st.write(db.get_queued_tasks())
+
+st.subheader("Download Example Data", divider='blue')
+
+c1, c2 = st.columns([1, 1])
+
+file_path = r"..\..\tests\data\sample_preprocessed_2spectra.mgf"
+
+c1.download_button(
+    label="sample_preprocessed_2spectra.mgf",
+    data=file_path,
+    file_name="sample_preprocessed_2spectra.mgf",
+    mime="text/plain",
+    use_container_width=True,
+)
+
+file_path = r"..\..\tests\data\sample_preprocessed_128spectra.mgf"
+
+c2.download_button(
+    label="sample_preprocessed_128spectra.mgf",
+    data=file_path,
+    file_name="sample_preprocessed_128spectra.mgf",
+    mime="text/plain",
+    use_container_width=True,
+)
 
 
