@@ -1,2 +1,5 @@
 # specify version of the package
-__version__ = "0.1.0"
+from casanovogui.version import VERSION
+
+__version__ = VERSION
+

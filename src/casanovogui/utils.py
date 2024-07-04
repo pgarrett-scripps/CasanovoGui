@@ -1,3 +1,4 @@
+import os
 import uuid
 from typing import List
 
@@ -6,10 +7,17 @@ import peptacular as pt
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from platformdirs import user_data_dir
 
+from version import VERSION
 from simple_db import CasanovoDB
 
-DATA_FOLDER = "data"
+
+def get_storage_path():
+    data_dir = user_data_dir(appname="CasanovoGui", version=VERSION)
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    return os.path.join(data_dir, 'data.json')
 
 
 def refresh_de_key(de_key: str):
@@ -21,7 +29,7 @@ def refresh_de_key(de_key: str):
 @st.cache_resource
 def get_database_session():
     # Create a database session object that points to the URL.
-    db = CasanovoDB(DATA_FOLDER)
+    db = CasanovoDB(get_storage_path())
     return db
 
 
@@ -309,3 +317,21 @@ def generate_annonated_spectra_plotly(peptide: str, charge: int, mz_spectra: Lis
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def filter_by_tags(df, tags_column: str = 'Tags', key: str = 'Filter') -> pd.DataFrame:
+    if len(df) == 0:
+        return df
+
+    c1, c2 = st.columns([4, 1])
+    selected_tags = c1.multiselect("Filter by Tags", df[tags_column].explode().unique(), key=key + 'multiselect')
+    tag_mode = c2.selectbox("Tag Mode", ["Any", "All"], index=1, key=key + 'selectbox')
+
+    # filter
+    if selected_tags:
+        if tag_mode == 'All':
+            df = df[df[tags_column].apply(lambda x: all(tag in x for tag in selected_tags))]
+        elif tag_mode == 'Any':
+            df = df[df[tags_column].apply(lambda x: any(tag in selected_tags for tag in x))]
+
+    return df

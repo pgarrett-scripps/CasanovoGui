@@ -14,7 +14,6 @@ from datetime import datetime, date
 # Define a generic type variable for the Pydantic model
 T = TypeVar('T', bound=BaseModel)
 
-
 class _TinyDBManager(Generic[T]):
     def __init__(self,
                  model: Type[T],
@@ -24,6 +23,7 @@ class _TinyDBManager(Generic[T]):
                  verbose: bool,
                  ):
         self.model = model
+        self.db_path = db_path
         self.db = TinyDB(db_path)
         self.files_table = self.db.table(table_name)
         self.verbose = verbose
@@ -161,13 +161,25 @@ class FileManager(Generic[T]):
         return src_path
 
     def reset_db(self):
-        with self.lock:
-            # if files is a table, drop it
-            if 'files' in self.db_manager.db.tables():
-                self.db_manager.db.drop_table('files')
+        try:
+            with self.lock:
+                # if files is a table, drop it
+                if 'files' in self.db_manager.db.tables():
+                    self.db_manager.db.drop_table('files')
 
-            for file in os.listdir(self.storage_dir):
-                os.remove(os.path.join(self.storage_dir, file))
+                for file in os.listdir(self.storage_dir):
+                    os.remove(os.path.join(self.storage_dir, file))
+
+        except json.decoder.JSONDecodeError:
+            os.remove(self.db_manager.db_path)
+
+            with self.lock:
+                # if files is a table, drop it
+                if 'files' in self.db_manager.db.tables():
+                    self.db_manager.db.drop_table('files')
+
+                for file in os.listdir(self.storage_dir):
+                    os.remove(os.path.join(self.storage_dir, file))
 
         self._log("Reset the database")
 
@@ -243,28 +255,29 @@ class CasanovoDB:
 
         self.models_manager = FileManager[ModelFileMetadata](ModelFileMetadata,
                                                              models_storage_folder,
-                                                             self.metadata_db_path,
+                                                             os.path.join(data_folder, 'models_metadata.json'),
                                                              models_table_name,
                                                              meta_data_lock,
                                                              verbose,
                                                              )
         self.spectra_files_manager = FileManager[SpectraFileMetadata](SpectraFileMetadata,
                                                                       spectra_files_storage_folder,
-                                                                      self.metadata_db_path,
+                                                                      os.path.join(data_folder,
+                                                                                   'spectra_metadata.json'),
                                                                       spectra_files_table_name,
                                                                       meta_data_lock,
                                                                       verbose,
                                                                       )
         self.searches_manager = FileManager[SearchMetadata](SearchMetadata,
                                                             searches_storage_folder,
-                                                            self.metadata_db_path,
+                                                            os.path.join(data_folder, 'search_metadata.json'),
                                                             searches_table_name,
                                                             meta_data_lock,
                                                             verbose,
                                                             )
         self.config_manager = FileManager[ConfigFileMetadata](ConfigFileMetadata,
                                                               config_storage_folder,
-                                                              self.metadata_db_path,
+                                                              os.path.join(data_folder, 'config_metadata.json'),
                                                               config_table_name,
                                                               meta_data_lock,
                                                               verbose,
@@ -473,16 +486,10 @@ class CasanovoDB:
         self.queue_thread.join()
 
     def reset_db(self):
-        try:
-            self.models_manager.reset_db()
-            self.spectra_files_manager.reset_db()
-            self.searches_manager.reset_db()
-        except json.decoder.JSONDecodeError:
-            # remove metadata_db.json if it is corrupted
-            os.remove(self.metadata_db_path)
-            self.models_manager.reset_db()
-            self.spectra_files_manager.reset_db()
-            self.searches_manager.reset_db()
+        self.models_manager.reset_db()
+        self.spectra_files_manager.reset_db()
+        self.searches_manager.reset_db()
+        self.config_manager.reset_db()
 
     def get_search_path(self, search_id: str):
         path = self.searches_manager.retrieve_file_path(search_id)

@@ -7,15 +7,17 @@ import streamlit as st
 import pandas as pd
 
 from simple_db import SpectraFileMetadata
-from utils import refresh_de_key, get_database_session
+from utils import refresh_de_key, get_database_session, filter_by_tags
 
 PAGE_KEY = 'FILES'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
-SUPPORTED_FILES = ['.mzml', '.mgf']
+SUPPORTED_FILES = ['.mgf']
 
 # Set up the Streamlit page configuration
 st.set_page_config(page_title="Spectra", layout="wide")
 st.title("Spectra")
+st.caption('Small testing mgf files are available on the home page. Otherwise use msconvert to convert vendor raw '
+           'files to mgf: https://proteowizard.sourceforge.io/download.html and upload them here.')
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
@@ -41,7 +43,6 @@ def batch_upload_option(uploaded_files):
     instrument = c2.text_input("Instrument")
 
     annotated = st.checkbox("Annotated")
-
 
     if c1.button("Submit", type='primary', use_container_width=True, disabled=len(uploaded_files) == 0):
         for uploaded_file in uploaded_files:
@@ -92,7 +93,6 @@ def single_option(uploaded_file):
     instrument = c2.text_input("Instrument")
 
     annotated = st.checkbox("Annotated")
-
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=uploaded_file is None):
@@ -225,6 +225,9 @@ df['Date'] = pd.to_datetime(df['Date'])
 df["✏️"] = False
 df['🗑️'] = False
 df['📥'] = False
+
+
+df = filter_by_tags(df)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,

@@ -2,12 +2,13 @@ import os
 import tempfile
 import uuid
 from datetime import date
+from typing import Optional
 
 import streamlit as st
 import pandas as pd
 
 from simple_db import SearchMetadata
-from utils import refresh_de_key, get_database_session
+from utils import refresh_de_key, get_database_session, filter_by_tags
 
 PAGE_KEY = 'SEARCH'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
@@ -16,6 +17,7 @@ SUPPORTED_FILES = ['.mztab']
 # Set up the Streamlit page configuration
 st.set_page_config(page_title="Search", layout="wide")
 st.title("Search")
+st.caption("Use Casanovo to search a spectra file(s) using a pretrained model. Or upload an existing search.")
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
@@ -137,47 +139,54 @@ def upload_option():
         st.warning("Please upload a file.")
 
 
-@st.experimental_dialog("New Search")
+@st.experimental_dialog("New Search", width='large')
 def add_option():
-    st.subheader("Search Metadata", divider='blue')
+    selected_model_id = None
+    selected_spectra_ids = []
 
-    c1, c2 = st.columns([8, 2])
-    file_name = c1.text_input("Base File Name", value='My Search', disabled=False)
-    file_type = c2.text_input("File Extension", value='mztab', disabled=True)
-    description = st.text_area("Description")
-    date_input = st.date_input("Date", value=date.today())
-    tags = st.text_input("Tags (comma-separated)").split(",")
+    t1, t2, t3 = st.tabs(['Metadata', 'Model', 'Spectra'])
 
-    model_id = None
-    spectra_id = None
+    with t1:
+        c1, c2 = st.columns([8, 2])
+        file_name = c1.text_input("Base File Name", value='My Search', disabled=False)
+        file_type = c2.text_input("File Extension", value='mztab', disabled=True)
+        description = st.text_area("Description")
+        date_input = st.date_input("Date", value=date.today())
+        tags = st.text_input("Tags (comma-separated)").split(",")
 
-    st.subheader("Select Model", divider='blue')
-    model_ids = db.models_manager.get_all_metadata()
-    df = pd.DataFrame(map(lambda e: e.dict(), model_ids))
-    selection = st.dataframe(df, selection_mode='single-row', on_select='rerun', hide_index=True)
-    selected_index = selection['selection']['rows'][0] if selection['selection']['rows'] else None
-    if selected_index is None:
-        st.info("Selected Model: Default")
-    else:
-        model_id = model_ids[selected_index].file_id
-        model_name = model_ids[selected_index].file_name
-        st.info(f"Selected Model: {model_name}")
 
-    st.subheader("Select Spectra", divider='blue')
-    spectra_ids = db.spectra_files_manager.get_all_metadata()
-    df = pd.DataFrame(map(lambda e: e.dict(), spectra_ids))
-    selection = st.dataframe(df, selection_mode='multi-row', on_select='rerun', hide_index=True)
-    selected_indexes = selection['selection']['rows'] if len(selection['selection']['rows']) > 0 else []
-    if len(selected_indexes) == 0:
-        st.warning("Please select one or more spectra.")
-    else:
-        selected_spectra_ids = [spectra_ids[i].file_id for i in selected_indexes]
-        selected_spectra_names = [spectra_ids[i].file_name for i in selected_indexes]
-        st.info(f"Selected {len(selected_spectra_ids)} spectra!")
+    with t2:
+        model_ids = db.models_manager.get_all_metadata()
+        df = pd.DataFrame(map(lambda e: e.dict(), model_ids))
+        if df.empty:
+            st.warning("No models found.")
+        else:
+            df = filter_by_tags(df, 'tags', key='Dialog_Model_Filter')
+            selection = st.dataframe(df, selection_mode='single-row', on_select='rerun', hide_index=True, use_container_width=True)
+            selected_index = selection['selection']['rows'][0] if selection['selection']['rows'] else None
+            selected_model_id = model_ids[selected_index].file_id if selected_index is not None else None
+
+    with t3:
+        st.subheader("Select Spectra", divider='blue')
+        spectra_ids = db.spectra_files_manager.get_all_metadata()
+        df = pd.DataFrame(map(lambda e: e.dict(), spectra_ids))
+        if df.empty:
+            st.warning("No spectra found.")
+        else:
+            df = filter_by_tags(df, 'tags', key='Dialog_Search_Filter')
+            selection = st.dataframe(df, selection_mode='multi-row', on_select='rerun', hide_index=True, use_container_width=True)
+            selected_indexes = selection['selection']['rows'] if len(selection['selection']['rows']) > 0 else []
+            selected_spectra_ids = [spectra_ids[i].file_id for i in selected_indexes]
+
+    if selected_model_id is None:
+        st.warning("Please select a model.")
+
+    if len(selected_spectra_ids) == 0:
+        st.warning("Please select at least one spectra.")
 
     c1, c2 = st.columns([1, 1])
-    if c1.button("Submit", type='primary', use_container_width=True, disabled=len(spectra_ids) == 0):
-
+    if c1.button("Submit", type='primary', use_container_width=True, disabled=len(selected_spectra_ids) == 0
+                                                                              or selected_model_id is None):
         for selected_spectra_id in selected_spectra_ids:
             metadata = SearchMetadata(
                 file_id=str(uuid.uuid4()),
@@ -186,7 +195,7 @@ def add_option():
                 file_type=file_type,
                 date=date_input,
                 tags=tags,
-                model=model_id,
+                model=selected_model_id,
                 spectra=selected_spectra_id,
                 status="pending"
             )
@@ -283,7 +292,7 @@ if df.empty:
     st.stop()
 
 rename_map = {
-    "file_id": "File ID",
+    "file_id": "ID",
     "file_name": "Name",
     "description": "Description",
     "date": "Date",
@@ -301,15 +310,27 @@ df['🗑️'] = False
 df['📥'] = False
 df['👁️'] = False
 
+df = filter_by_tags(df, key='Main_Page_Filter')
+
 if 'Model ID' not in df.columns:
     df['Model ID'] = None
 
 if 'Spectra ID' not in df.columns:
     df['Spectra ID'] = None
 
-df['Model Name'] = df['Model ID'].apply(lambda x: db.models_manager.get_file_metadata(x).file_name if x else None)
-df['Spectra Name'] = df['Spectra ID'].apply(
-    lambda x: db.spectra_files_manager.get_file_metadata(x).file_name if x else None)
+def get_filename(file_id: Optional[str]) -> str:
+    if not file_id:
+        return None
+
+    try:
+        file_metadata = manager.get_file_metadata(file_id)
+    except FileNotFoundError:
+        return None
+
+    return file_metadata.file_name
+
+df['Model Name'] = df['Model ID'].apply(get_filename)
+df['Spectra Name'] = df['Spectra ID'].apply(get_filename)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,
@@ -346,20 +367,43 @@ elif len(edited_rows) == 1:
 
     if "✏️" in edited_row and edited_row["✏️"] is True:
         entry_to_edit = df.iloc[row_index].to_dict()
-        entry = manager.get_file_metadata(entry_to_edit["File ID"])
+        entry = manager.get_file_metadata(entry_to_edit["ID"])
         edit_option(entry)
 
     if "🗑️" in edited_row and edited_row["🗑️"] is True:
-        delete_option(df.iloc[row_index]["File ID"])
+        delete_option(df.iloc[row_index]["ID"])
 
     if "📥" in edited_row and edited_row["📥"] is True:
-        download_option(df.iloc[row_index]["File ID"])
+        download_option(df.iloc[row_index]["ID"])
 
     if "👁️" in edited_row and edited_row["👁️"] is True:
         # switch to the viewer page
+        # refresh_de_key(PAGE_DE_KEY)
+        # st.session_state['viewer_Search_id'] = df.iloc[row_index]["File ID"]
+        # st.switch_page("pages/viewer.py")
+
+        entry_to_edit = df.iloc[row_index].to_dict()
+        entry = manager.get_file_metadata(entry_to_edit["ID"])
+        file_path = manager.retrieve_file_path(entry.file_id)
+
+        if 'viewed_file' not in st.session_state:
+            st.session_state['viewed_file'] = entry.file_id
+
         refresh_de_key(PAGE_DE_KEY)
-        st.session_state['viewer_Search_id'] = df.iloc[row_index]["File ID"]
-        st.switch_page("pages/viewer.py")
+        st.rerun()
 else:
     refresh_de_key(PAGE_DE_KEY)
     st.rerun()
+
+
+if 'viewed_file' in st.session_state:
+    entry = manager.get_file_metadata(st.session_state['viewed_file'])
+    file_path = manager.retrieve_file_path(entry.file_id).replace(".mztab", ".log")
+
+    st.subheader(f"Name: {entry.file_name}.log", divider='blue')
+
+    with open(file_path, "rb") as file:
+        st.code(file.read().decode(), language='yaml')
+
+    # remove the viewed_file key
+    del st.session_state['viewed_file']

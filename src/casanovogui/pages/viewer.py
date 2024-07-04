@@ -7,12 +7,89 @@ import plotly.express as px
 from pyteomics import mgf
 import peptacular as pt
 
-from utils import generate_annonated_spectra_plotly, get_database_session
+from utils import generate_annonated_spectra_plotly, get_database_session, filter_by_tags
 
 st.set_page_config(page_title="Results Viewer", layout="wide")
 st.title('Results Viewer')
 
-selected_search_id = st.session_state.get('viewer_Search_id', None)
+st.subheader('Selected Search', divider=True)
+
+if 'selected_search_id' not in st.session_state:
+    st.session_state.selected_search_id = None
+
+selected_search_id = st.session_state.selected_search_id
+
+@st.experimental_dialog(title="Select Search")
+def update_current_search():
+    # Get all file metadata entries
+    db = get_database_session()
+    entries = db.searches_manager.get_all_metadata()
+    df = pd.DataFrame(map(lambda e: e.dict(), entries))
+
+    if df.empty:
+        st.write("No entries found.")
+        st.stop()
+
+    rename_map = {
+        "file_id": "ID",
+        "file_name": "Name",
+        "description": "Description",
+        "date": "Date",
+        "tags": "Tags",
+        "model": "Model ID",
+        "spectra": "Spectra ID",
+        "status": "Status"
+    }
+
+    # keep only Comleted searches
+    df = df[df['status'] == 'completed']
+
+    # Customize the dataframe for display
+    df.rename(columns=rename_map, inplace=True)
+    df['Date'] = pd.to_datetime(df['Date'])
+
+    df = filter_by_tags(df, key='Main_Page_Filter')
+    selection = st.dataframe(df, selection_mode='single-row', on_select='rerun', hide_index=True, use_container_width=True)
+    selected_row = selection['selection']['rows'][0] if selection['selection']['rows'] else None
+
+    selected_search_id = df.iloc[selected_row]['ID'] if selected_row is not None else None
+
+    c1, c2 = st.columns([1, 1])
+    if c1.button('Sumbit', type='primary', use_container_width=True):
+        st.session_state.selected_search_id = selected_search_id
+        st.rerun()
+
+    elif c2.button('Cancel', use_container_width=True):
+        st.stop()
+
+
+if st.button('Update', type='primary', use_container_width=True):
+    update_current_search()
+
+if selected_search_id is not None:
+    # Get all file metadata entries
+    db = get_database_session()
+    entry = db.searches_manager.get_file_metadata(selected_search_id)
+    df = pd.DataFrame(map(lambda e: e.dict(), [entry]))
+
+    if df.empty:
+        st.write("No entries found.")
+        st.stop()
+
+    rename_map = {
+        "file_id": "ID",
+        "file_name": "Name",
+        "description": "Description",
+        "date": "Date",
+        "tags": "Tags",
+        "model": "Model ID",
+        "spectra": "Spectra ID",
+        "status": "Status"
+    }
+
+    st.dataframe(df.rename(columns=rename_map), hide_index=True)
+
+
 db = get_database_session()
 manager = db.searches_manager
 
@@ -117,6 +194,11 @@ search_path = db.searches_manager.retrieve_file_path(search_id)
 
 search_df = get_search_df(search_id)
 
+# plotly scatter plot of ppm_error vs score
+st.subheader('Search Results', divider=True)
+st.caption('Select a point to view the spectrum, or use the lass or box tool to select multiple points')
+
+
 c1, c2 = st.columns([1, 1])
 min_ppm_error = c2.number_input('Min PPM Error', value=-50)
 max_ppm_error = c1.number_input('Max PPM Error', value=50)
@@ -127,9 +209,7 @@ search_df = search_df[(search_df['PPM Error'] > min_ppm_error) & (search_df['PPM
 if filter_by_best_peptide:
     search_df = search_df.sort_values('Score', ascending=False).groupby(['Sequence', 'Charge']).head(1)
 
-# plotly scatter plot of ppm_error vs score
-st.subheader('Search Results', divider=True)
-st.caption('Select a point to view the spectrum, or use the lass or box tool to select multiple points')
+st.divider()
 
 fig = px.scatter(search_df, x='PPM Error', y='Score',
                  hover_data=['Sequence', 'Charge', 'Experimental m/z', 'Theoretical m/z', 'Retention Time',

@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 
 from simple_db import ModelFileMetadata
-from utils import refresh_de_key, get_database_session
+from utils import refresh_de_key, get_database_session, filter_by_tags
 
 PAGE_KEY = 'MODELS'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
@@ -16,6 +16,8 @@ SUPPORTED_FILES = ['.ckpt']
 # Set up the Streamlit page configuration
 st.set_page_config(page_title=f"Model", layout="wide")
 st.title(f"Model")
+st.caption('Default models can be downloaded from the home page. Otherwise models can be uploaded or trained. '
+           'See available models at https://github.com/Noble-Lab/casanovo/releases.')
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
@@ -31,52 +33,57 @@ entries = map(lambda e: e.dict(), entries)
 df = pd.DataFrame(entries)
 
 
-@st.experimental_dialog("Train Model")
+@st.experimental_dialog("Train Model", width='large')
 def train_option():
     # select multiple annotated files
-    st.write("Select multiple annotated files to train the model.")
 
-    st.subheader('Metadata', divider='blue')
-    c1, c2 = st.columns([7, 2])
-    file_name = c1.text_input("File Name", value='', disabled=False)
-    file_type = c2.text_input("File Type", value='ckpt', disabled=True)
+    t1, t2, t3 = st.tabs(["Metadata", "Spectra", "Config"])
+    selected_spectra_ids = []
+    selected_config = None
 
-    description = st.text_area("Description")
-    date_input = st.date_input("Date", value=date.today())
-    tags = st.text_input("Tags (comma-separated)").split(",")
+    with t1:
+        c1, c2 = st.columns([7, 2])
+        file_name = c1.text_input("File Name", value='', disabled=False)
+        file_type = c2.text_input("File Type", value='ckpt', disabled=True)
 
-    st.subheader('Select Spectra', divider='blue')
+        description = st.text_area("Description")
+        date_input = st.date_input("Date", value=date.today())
+        tags = st.text_input("Tags (comma-separated)").split(",")
 
-    spectra_metadata = db.spectra_files_manager.get_all_metadata()
+    with t2:
+        st.caption("Select annotated spectra to train the model.")
+        spectra_metadata = db.spectra_files_manager.get_all_metadata()
 
-    spectra_df = pd.DataFrame(map(lambda e: e.dict(), spectra_metadata))
-    if len(spectra_df) > 0:
-        spectra_df = spectra_df[spectra_df['annotated'] == True]
-    selection = st.dataframe(spectra_df, on_select='rerun', selection_mode='multi-row', use_container_width=True)
-    selected_rows = list(selection['selection']['rows'])
-    spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist()
+        spectra_df = pd.DataFrame(map(lambda e: e.dict(), spectra_metadata))
+        if len(spectra_df) > 0:
+            spectra_df = spectra_df[spectra_df['annotated'] == True]
 
-    if len(selected_rows) == 0:
+        spectra_df = filter_by_tags(spectra_df, 'tags', key='Dialog_Model_Spectra_Filter')
+
+        selection = st.dataframe(spectra_df, on_select='rerun', selection_mode='multi-row', use_container_width=True)
+        selected_rows = list(selection['selection']['rows'])
+        selected_spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist()
+
+    with t3:
+        st.caption("Select a config file to train the model.")
+        config_metadata = db.config_manager.get_all_metadata()
+        config_df = pd.DataFrame(map(lambda e: e.dict(), config_metadata))
+        config_df = filter_by_tags(config_df, 'tags', key='Dialog_Model_Config_Filter')
+        selection = st.dataframe(config_df, on_select='rerun', selection_mode='single-row', use_container_width=True)
+        selected_row = selection['selection']['rows'][0] if len(selection['selection']['rows']) > 0 else None
+        selected_config = config_df.iloc[selected_row]['file_id'] if selected_row is not None else None
+
+    if not selected_spectra_ids:
         st.warning("No annotated spectra selected.")
-    else:
-        st.info(f"{len(selected_rows)} annotated spectra selected.")
 
-    st.subheader('Select Config', divider='blue')
-    config_metadata = db.config_manager.get_all_metadata()
-    config_df = pd.DataFrame(map(lambda e: e.dict(), config_metadata))
-    selection = st.dataframe(config_df, on_select='rerun', selection_mode='single-row', use_container_width=True)
-    selected_row = selection['selection']['rows'][0] if len(selection['selection']['rows']) > 0 else None
-    config_id = config_df.iloc[selected_row]['file_id'] if selected_row is not None else None
-    if selected_row is None:
-        st.warning("No config selected. Using default config.")
-    else:
-        config_name = config_df.iloc[selected_row]['file_name']
-        st.info("Config selected: " + config_name)
+    if not selected_config:
+        st.warning("No config selected.")
 
     c1, c2 = st.columns([1, 1])
-    if c1.button("Submit", type='primary', use_container_width=True, disabled=len(spectra_ids) == 0):
+    if c1.button("Submit", type='primary', use_container_width=True,
+                 disabled=len(selected_spectra_ids) == 0 or selected_config is None):
         # db.train(self, spectra_ids: list[str], config_id: Optional[str], model_metadata: ModelFileMetadata) -> str:
-        db.train(spectra_ids, config_id, ModelFileMetadata(
+        db.train(selected_spectra_ids, selected_config, ModelFileMetadata(
             file_id=str(uuid.uuid4()),
             file_name=file_name,
             description=description,
@@ -85,7 +92,7 @@ def train_option():
             tags=tags,
             source='trained',
             status='pending',
-            config=config_id,
+            config=selected_config,
         ))
 
         refresh_de_key(PAGE_DE_KEY)
@@ -229,6 +236,8 @@ df["✏️"] = False
 df['🗑️'] = False
 df['📥'] = False
 df['👁️'] = False
+
+df = filter_by_tags(df)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,

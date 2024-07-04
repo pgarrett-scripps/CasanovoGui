@@ -9,7 +9,8 @@ import streamlit as st
 import yaml
 
 from simple_db import ConfigFileMetadata
-from utils import refresh_de_key, get_database_session
+from utils import refresh_de_key, get_database_session, filter_by_tags
+
 
 PAGE_KEY = 'CONFIG'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
@@ -18,6 +19,8 @@ SUPPORTED_FILES = ['.yaml']
 # Set up the Streamlit page configuration
 st.set_page_config(page_title=f"Config", layout="wide")
 st.title(f"Config")
+st.caption('A Default config file is available on the home page. Otherwise use the create config button to '
+           'create a new config file.')
 
 if PAGE_DE_KEY not in st.session_state:
     refresh_de_key(PAGE_DE_KEY)
@@ -31,7 +34,6 @@ manager = db.config_manager
 entries = manager.get_all_metadata()
 entries = map(lambda e: e.dict(), entries)
 df = pd.DataFrame(entries)
-
 
 
 @st.experimental_dialog("Create config", width="large")
@@ -326,6 +328,7 @@ df['🗑️'] = False
 df['📥'] = False
 df['👁️'] = False
 
+df = filter_by_tags(df)
 
 # Display the editable dataframe
 edited_df = st.data_editor(df,
