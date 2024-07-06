@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  casanovogui:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - casanovogui_data:/root/.local/share/CasanovoGui
+
+volumes:
+  casanovogui_data:
+    name: casanovogui_data
