@@ -28,7 +28,6 @@ with st.echo():
     else:
         st.write("GPU is not available")
 
-
 st.subheader("Queue", divider='blue')
 
 st.caption("Current Tasks in the queue")
@@ -38,13 +37,14 @@ st.caption("Queued Tasks")
 st.write(db.get_queued_tasks())
 
 st.header("Add Default Data")
+
+
 def download_file(url, filename):
     with st.spinner(f"Downloading {filename}..."):
         response = requests.get(url)
         with open(filename, 'wb') as file:
             file.write(response.content)
     st.success(f"{filename} downloaded!")
-
 
 
 @st.experimental_fragment
@@ -54,7 +54,6 @@ def default_spectra():
     sample128_spectra_link = r"./static/sample_preprocessed_128spectra.mgf"
     c1, c2 = st.columns([1, 1])
     if c1.button('2 spectra mgf', use_container_width=True):
-
         metadata = SpectraFileMetadata(
             file_id=str(uuid.uuid4()),
             file_name='Sample 2 Spectra',
@@ -84,6 +83,7 @@ def default_spectra():
         db.spectra_files_manager.add_file(sample128_spectra_link, metadata, copy=True)
         st.toast("Spectra added successfully", icon="✅")
 
+
 default_spectra()
 
 
@@ -95,7 +95,6 @@ def default_models():
 
     c1, c2 = st.columns([1, 1])
     if c1.button('Default Tryptic Model', use_container_width=True):
-
         with st.spinner(f"Downloading {tryptic_link}..."):
             response = requests.get(tryptic_link)
 
@@ -117,9 +116,7 @@ def default_models():
         db.models_manager.add_file(tmp_path, metadata, copy=False)
         st.toast("Model added successfully", icon="✅")
 
-
     if c2.button('Default Nontryptic Model', use_container_width=True):
-
         with st.spinner(f"Downloading {nontryptic_link}..."):
             response = requests.get(nontryptic_link)
 
@@ -142,11 +139,12 @@ def default_models():
         db.models_manager.add_file(tmp_path, metadata, copy=False)
         st.toast("Model added successfully", icon="✅")
 
+
 default_models()
+
 
 @st.experimental_fragment
 def default_config():
-
     st.subheader("Config", divider='blue')
     if st.button("Default Config", use_container_width=True):
         config_url = 'https://raw.githubusercontent.com/Noble-Lab/casanovo/main/casanovo/config.yaml'
@@ -172,9 +170,5 @@ def default_config():
         db.config_manager.add_file(tmp_path, metadata, copy=False)
         st.toast("Config added successfully", icon="✅")
 
+
 default_config()
-
-
-
-
-
