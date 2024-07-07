@@ -2,9 +2,14 @@ version: '3.8'
 
 services:
   casanovogui:
-    build: .
+    image: pgarrettscripps/casanovogui
     ports:
-      - "8501:8501"
+      - "8510:8501"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
     volumes:
       - casanovogui_data:/root/.local/share/CasanovoGui
 
