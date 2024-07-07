@@ -1,12 +1,14 @@
-FROM python:3.11
+FROM nvidia/cuda:12.5.0-runtime-ubuntu22.04
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install
+RUN apt-get update && apt-get install && apt-get install -y python3-pip
 
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
+
+RUN pip install platformdirs
 
 COPY . .
 
