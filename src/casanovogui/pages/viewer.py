@@ -4,10 +4,14 @@ from typing import Optional
 import pandas as pd
 import streamlit as st
 import plotly.express as px
+from matplotlib import pyplot as plt
 from pyteomics import mgf
 import peptacular as pt
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 
-from utils import generate_annonated_spectra_plotly, get_database_session, filter_by_tags
+from utils import (generate_annonated_spectra_plotly, get_database_session, filter_by_tags, get_model_filename,
+                   get_spectra_filename)
 
 st.set_page_config(page_title="Results Viewer", layout="wide")
 st.title('Results Viewer')
@@ -19,16 +23,13 @@ if 'selected_search_id' not in st.session_state:
 
 selected_search_id = st.session_state.selected_search_id
 
-@st.experimental_dialog(title="Select Search")
+
+@st.experimental_dialog(title="Select Search", width='large')
 def update_current_search():
     # Get all file metadata entries
     db = get_database_session()
     entries = db.searches_manager.get_all_metadata()
     df = pd.DataFrame(map(lambda e: e.dict(), entries))
-
-    if df.empty:
-        st.write("No entries found.")
-        st.stop()
 
     rename_map = {
         "file_id": "ID",
@@ -36,20 +37,45 @@ def update_current_search():
         "description": "Description",
         "date": "Date",
         "tags": "Tags",
-        "model": "Model ID",
-        "spectra": "Spectra ID",
+        "model": "Model",
+        "spectra": "Spectra",
         "status": "Status"
     }
 
+    df = df.rename(columns=rename_map)
+
+    if 'Model' not in df.columns:
+        df['Model'] = None
+
+    if 'Spectra' not in df.columns:
+        df['Spectra'] = None
+
+    df['Model'] = df['Model'].apply(get_model_filename)
+    df['Spectra'] = df['Spectra'].apply(get_spectra_filename)
+
     # keep only Comleted searches
-    df = df[df['status'] == 'completed']
+    df = df[df['Status'] == 'completed']
 
     # Customize the dataframe for display
-    df.rename(columns=rename_map, inplace=True)
     df['Date'] = pd.to_datetime(df['Date'])
 
     df = filter_by_tags(df, key='Main_Page_Filter')
-    selection = st.dataframe(df, selection_mode='single-row', on_select='rerun', hide_index=True, use_container_width=True)
+    selection = st.dataframe(df,
+                             selection_mode='single-row',
+                             on_select='rerun',
+                             hide_index=True,
+                             use_container_width=True,
+                             column_order=['Name', 'Description', 'Date', 'Tags', 'Model ID', 'Spectra ID', 'Status'],
+                             column_config={
+                                 "Name": st.column_config.TextColumn(disabled=True, width='medium'),
+                                 "Description": st.column_config.TextColumn(disabled=True, width='medium'),
+                                 "Date": st.column_config.DateColumn(disabled=True, width='small'),
+                                 "Tags": st.column_config.ListColumn(width='small'),
+                                 "Model": st.column_config.TextColumn(disabled=True, width='small'),
+                                 "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
+                             },
+                                )
+
     selected_row = selection['selection']['rows'][0] if selection['selection']['rows'] else None
 
     selected_search_id = df.iloc[selected_row]['ID'] if selected_row is not None else None
@@ -67,14 +93,9 @@ if st.button('Update', type='primary', use_container_width=True):
     update_current_search()
 
 if selected_search_id is not None:
-    # Get all file metadata entries
     db = get_database_session()
     entry = db.searches_manager.get_file_metadata(selected_search_id)
     df = pd.DataFrame(map(lambda e: e.dict(), [entry]))
-
-    if df.empty:
-        st.write("No entries found.")
-        st.stop()
 
     rename_map = {
         "file_id": "ID",
@@ -82,12 +103,36 @@ if selected_search_id is not None:
         "description": "Description",
         "date": "Date",
         "tags": "Tags",
-        "model": "Model ID",
-        "spectra": "Spectra ID",
+        "model": "Model",
+        "spectra": "Spectra",
         "status": "Status"
     }
 
-    st.dataframe(df.rename(columns=rename_map), hide_index=True)
+    df = df.rename(columns=rename_map)
+
+    if 'Model' not in df.columns:
+        df['Model'] = None
+
+    if 'Spectra' not in df.columns:
+        df['Spectra'] = None
+
+    df['Model'] = df['Model'].apply(get_model_filename)
+    df['Spectra'] = df['Spectra'].apply(get_spectra_filename)
+
+    st.dataframe(df,
+                 hide_index=True,
+                 use_container_width=True,
+                 column_order=['Name', 'Description', 'Date', 'Tags', 'Model ID', 'Spectra ID', 'Status'],
+                 column_config={
+                               "Name": st.column_config.TextColumn(disabled=True, width='medium'),
+                               "Description": st.column_config.TextColumn(disabled=True, width='medium'),
+                               "Date": st.column_config.DateColumn(disabled=True, width='small'),
+                               "Tags": st.column_config.ListColumn(width='small'),
+                                "Model": st.column_config.TextColumn(disabled=True, width='small'),
+                                "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
+                           },
+                 )
+
 
 
 db = get_database_session()
@@ -177,10 +222,21 @@ if selected_search_id is None:
     st.warning('No search selected')
     st.stop()
 
-search_metadata = manager.get_file_metadata(selected_search_id)
-spectra_id = search_metadata.spectra
-spectra_metadata = db.spectra_files_manager.get_file_metadata(spectra_id)
-spectra_path = db.spectra_files_manager.retrieve_file_path(spectra_id)
+
+try:
+    search_metadata = manager.get_file_metadata(selected_search_id)
+    spectra_id = search_metadata.spectra
+except FileNotFoundError as e:
+    st.error('Search Metadata not found')
+    st.stop()
+
+try:
+    spectra_metadata = db.spectra_files_manager.get_file_metadata(spectra_id)
+    spectra_path = db.spectra_files_manager.retrieve_file_path(spectra_id)
+except FileNotFoundError as e:
+    st.error('Spectra Metadata not found')
+    st.error('Spectra file could have been deleted or moved. Please re-upload the file.')
+    st.stop()
 
 if spectra_metadata.file_type == 'mzML':
     st.error('mzML files are not supported yet')
@@ -200,8 +256,8 @@ st.caption('Select a point to view the spectrum, or use the lass or box tool to 
 
 
 c1, c2 = st.columns([1, 1])
-min_ppm_error = c2.number_input('Min PPM Error', value=-50)
-max_ppm_error = c1.number_input('Max PPM Error', value=50)
+min_ppm_error = c1.number_input('Min PPM Error', value=-50)
+max_ppm_error = c2.number_input('Max PPM Error', value=50)
 filter_by_best_peptide = c1.checkbox('Filter by best (peptide, charge) pair', value=True)
 
 search_df = search_df[(search_df['PPM Error'] > min_ppm_error) & (search_df['PPM Error'] < max_ppm_error)]
@@ -236,9 +292,8 @@ elif len(search_df) == 1:
     selected_row = search_df.iloc[0]
 
 if selected_index is not None:
-    #selected_index
+
     selected_spectrum = get_spectrum_by_index(spectra_path, selected_index)
-    #selected_spectrum
 
     peptide = selected_row['Sequence']
     charge = int(float(selected_row['Charge']))
@@ -247,4 +302,28 @@ if selected_index is not None:
 
     st.subheader(f'Spectra Viewer: {peptide}/{charge}', divider=True)
 
+    scores = list(map(float, selected_row['opt_ms_run[1]_aa_scores'].split(',')))
+    unmod_peptide = pt.strip_mods(peptide)
+
+    # Normalize scores to the range [0, 1]
+    norm = plt.Normalize(0, 1)
+    colors = plt.cm.viridis(norm(scores))
+
+    colored_html = ''.join(
+        [f'<span title="{score}" style="color: rgb({int(r * 255)}, {int(g * 255)}, {int(b * 255)}); '
+         f'background-color: rgba({int(r * 255)}, {int(g * 255)}, {int(b * 255)}, 0.2); padding: 2px; font-size: 24px;">{aa}</span>'
+         for aa, score, (r, g, b, _) in zip(unmod_peptide, scores, colors)]
+    )
+
+    # Wrap the colored HTML in a centered div
+    centered_html = f'<div style="text-align: center;">{colored_html}</div>'
+
+
     generate_annonated_spectra_plotly(peptide, charge, mz_spectra, intensity_spectra)
+
+    st.subheader('AA Scores', divider=True)
+    # Display the centered colored peptide string using Streamlit
+    st.markdown(centered_html, unsafe_allow_html=True)
+
+    score_df = pd.DataFrame({'Amino Acid': list(unmod_peptide), 'Score': scores})
+    st.dataframe(score_df, use_container_width=True, hide_index=True)

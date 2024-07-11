@@ -36,7 +36,7 @@ def batch_upload_option(uploaded_files):
     file_name = st.text_input("File Suffix", value='', disabled=False)
     description = st.text_area("Description")
     date_input = st.date_input("Date", value=date.today())
-    tags = st.text_input("Tags (comma-separated)").split(",")
+    tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     c1, c2 = st.columns([1, 1])
     enzyme = c1.text_input("Enzyme")
@@ -76,7 +76,6 @@ def batch_upload_option(uploaded_files):
 
 
 def single_option(uploaded_file):
-
     st.subheader("Spectra Metadata", divider='blue')
     c1, c2 = st.columns([7, 2])
     base_file_name, file_extension = os.path.splitext(uploaded_file.name)
@@ -86,7 +85,7 @@ def single_option(uploaded_file):
 
     description = st.text_area("Description")
     date_input = st.date_input("Date", value=date.today())
-    tags = st.text_input("Tags (comma-separated)").split(",")
+    tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     c1, c2 = st.columns([1, 1])
     enzyme = c1.text_input("Enzyme")
@@ -135,14 +134,14 @@ def add_option():
 
 @st.experimental_dialog("Edit Metadata")
 def edit_option(entry: SpectraFileMetadata):
-
     st.subheader("Spectra Metadata", divider='blue')
     c1, c2 = st.columns([7, 2])
     entry.file_name = c1.text_input("File Name", value=entry.file_name, disabled=False)
     entry.file_type = c2.text_input("File Type", value=entry.file_type, disabled=True)
     entry.description = st.text_area("Description", value=entry.description)
     entry.date = st.date_input("Date", value=entry.date)
-    entry.tags = st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",")
+    entry.tags = [tag for tag in st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",")  if tag]
+
     c1, c2 = st.columns([1, 1])
     entry.enzyme = c1.text_input("Enzyme", value=entry.enzyme)
     entry.instrument = c2.text_input("Instrument", value=entry.instrument)
@@ -177,12 +176,17 @@ def delete_option(file_id: str):
 def download_option(file_id: str):
     st.write("Download the file:")
     file_path = db.spectra_files_manager.retrieve_file_path(file_id)
+    file_name = db.spectra_files_manager.get_file_metadata(file_id).file_name
+    ext = os.path.splitext(file_path)[1]
+    full_file_name = file_name + ext
+    download_name = st.text_input("Download Name", value=full_file_name, key="download_name")
+
     c1, c2 = st.columns([1, 1])
     with open(file_path, "rb") as file:
         btn = c1.download_button(
             label="Download",
             data=file,
-            file_name=os.path.basename(file_path),
+            file_name=download_name,
             mime='application/octet-stream',
             use_container_width=True,
             type='primary'
@@ -202,7 +206,6 @@ if c1.button("Add Files", use_container_width=True, type='primary'):
 if c2.button("Refresh", use_container_width=True):
     refresh_de_key(PAGE_DE_KEY)
     st.rerun()
-
 
 if df.empty:
     st.write("No entries found.")
@@ -226,7 +229,6 @@ df["✏️"] = False
 df['🗑️'] = False
 df['📥'] = False
 
-
 df = filter_by_tags(df)
 
 # Display the editable dataframe
@@ -244,7 +246,7 @@ edited_df = st.data_editor(df,
                                "Tags": st.column_config.ListColumn(width='small'),
                                "Enzyme": st.column_config.TextColumn(disabled=True, width='small'),
                                "Instrument": st.column_config.TextColumn(disabled=True, width='small'),
-                                "Annotated": st.column_config.CheckboxColumn(disabled=True, width='small')
+                               "Annotated": st.column_config.CheckboxColumn(disabled=True, width='small')
 
                            },
                            key=st.session_state[PAGE_DE_KEY],

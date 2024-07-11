@@ -57,12 +57,12 @@ def default_spectra():
         metadata = SpectraFileMetadata(
             file_id=str(uuid.uuid4()),
             file_name='Sample 2 Spectra',
-            description='',
+            description='From Casanovo Github Repository',
             file_type='mgf',
             date=date.today(),
-            tags=[''],
-            enzyme='',
-            instrument='',
+            tags=['default'],
+            enzyme='Unknown',
+            instrument='Unknown',
             annotated=True,
         )
         db.spectra_files_manager.add_file(sample2_spectra_link, metadata, copy=True)
@@ -72,12 +72,12 @@ def default_spectra():
         metadata = SpectraFileMetadata(
             file_id=str(uuid.uuid4()),
             file_name='Sample 128 Spectra',
-            description='',
+            description='From Casanovo Github Repository',
             file_type='mgf',
             date=date.today(),
-            tags=[''],
-            enzyme='',
-            instrument='',
+            tags=['default'],
+            enzyme='Unknown',
+            instrument='Unknown',
             annotated=True,
         )
         db.spectra_files_manager.add_file(sample128_spectra_link, metadata, copy=True)
@@ -108,7 +108,7 @@ def default_models():
             description='v4.0.0',
             file_type='ckpt',
             date=date(2023, 12, 23),
-            tags=[''],
+            tags=['default', 'tryptic'],
             source='uploaded',
             status='completed',
             config=None,
@@ -130,7 +130,7 @@ def default_models():
             description='v4.2.0',
             file_type='ckpt',
             date=date(2024, 5, 25),
-            tags=[''],
+            tags=['default', 'nontryptic'],
             source='uploaded',
             status='completed',
             config=None,
@@ -159,10 +159,10 @@ def default_config():
         metadata = ConfigFileMetadata(
             file_id=str(uuid.uuid4()),
             file_name='Default Config',
-            description='',
+            description='From Casanovo Github Repository',
             file_type='yaml',
             date=date.today(),
-            tags=['']
+            tags=['default']
         )
 
         print(metadata)

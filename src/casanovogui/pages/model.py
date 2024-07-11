@@ -7,7 +7,7 @@ import streamlit as st
 import pandas as pd
 
 from simple_db import ModelFileMetadata
-from utils import refresh_de_key, get_database_session, filter_by_tags
+from utils import refresh_de_key, get_database_session, filter_by_tags, get_config_filename
 
 PAGE_KEY = 'MODELS'
 PAGE_DE_KEY = f"{PAGE_KEY}_de_key"
@@ -48,7 +48,7 @@ def train_option():
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = st.text_input("Tags (comma-separated)").split(",")
+        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     with t2:
         st.caption("Select annotated spectra to train the model.")
@@ -117,7 +117,7 @@ def add_option():
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = st.text_input("Tags (comma-separated)").split(",")
+        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=not uploaded_file):
@@ -156,7 +156,7 @@ def edit_option(entry: ModelFileMetadata):
 
     entry.description = st.text_area("Description", value=entry.description)
     entry.date = st.date_input("Date", value=entry.date)
-    entry.tags = st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",")
+    entry.tags = [tag for tag in st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",")  if tag]
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True):
@@ -228,9 +228,14 @@ rename_map = {
     "status": "Status",
     "config": "Config"
 }
+df.rename(columns=rename_map, inplace=True)
+
+if 'Config' not in df.columns:
+    df['Config'] = None
+else:
+    df['Config'] = df['Config'].apply(get_config_filename)
 
 # Customize the dataframe for display
-df.rename(columns=rename_map, inplace=True)
 df['Date'] = pd.to_datetime(df['Date'])
 df["✏️"] = False
 df['🗑️'] = False

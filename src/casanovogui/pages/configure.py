@@ -46,7 +46,7 @@ def create_entry():
 
     description = st.text_area("Description")
     date_input = st.date_input("Date", value=date.today())
-    tags = st.text_input("Tags (comma-separated)").split(",")
+    tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     st.header("Inference/Training Parameters", divider='blue')
     c1, c2, c3 = st.columns(3)
@@ -197,7 +197,7 @@ def create_entry():
         st.rerun()
 
 
-@st.experimental_dialog("Edit Config Metadata")
+@st.experimental_dialog("Add Config")
 def add_option():
     uploaded_file = st.file_uploader("Upload Config", type=SUPPORTED_FILES)
 
@@ -211,7 +211,7 @@ def add_option():
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = st.text_input("Tags (comma-separated)").split(",")
+        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=not uploaded_file):
@@ -247,7 +247,7 @@ def edit_option(entry: ConfigFileMetadata):
 
     entry.description = st.text_area("Description", value=entry.description)
     entry.date = st.date_input("Date", value=entry.date)
-    entry.tags = st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",")
+    entry.tags = [tag for tag in st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",") if tag]
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True):

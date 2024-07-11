@@ -1,6 +1,6 @@
 import os
 import uuid
-from typing import List
+from typing import List, Optional
 
 import streamlit as st
 import peptacular as pt
@@ -17,7 +17,7 @@ def get_storage_path():
     data_dir = user_data_dir(appname="CasanovoGui", version=VERSION)
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
-    return os.path.join(data_dir, 'data.json')
+    return data_dir
 
 
 def refresh_de_key(de_key: str):
@@ -324,7 +324,12 @@ def filter_by_tags(df, tags_column: str = 'Tags', key: str = 'Filter') -> pd.Dat
         return df
 
     c1, c2 = st.columns([4, 1])
-    selected_tags = c1.multiselect("Filter by Tags", df[tags_column].explode().unique(), key=key + 'multiselect')
+
+    tags = df[tags_column].explode().unique()
+    # drop nan
+    tags = [tag for tag in tags if not pd.isna(tag)]
+
+    selected_tags = c1.multiselect("Filter by Tags",tags, key=key + 'multiselect')
     tag_mode = c2.selectbox("Tag Mode", ["Any", "All"], index=1, key=key + 'selectbox')
 
     # filter
@@ -335,3 +340,42 @@ def filter_by_tags(df, tags_column: str = 'Tags', key: str = 'Filter') -> pd.Dat
             df = df[df[tags_column].apply(lambda x: any(tag in selected_tags for tag in x))]
 
     return df
+
+
+def get_model_filename(file_id: Optional[str]) -> str:
+    if not file_id:
+        return None
+
+    try:
+        db = get_database_session()
+        file_metadata = db.models_manager.get_file_metadata(file_id)
+    except FileNotFoundError:
+        return None
+
+    return file_metadata.file_name
+
+
+def get_spectra_filename(file_id: Optional[str]) -> str:
+    if not file_id:
+        return None
+
+    try:
+        db = get_database_session()
+        file_metadata = db.spectra_files_manager.get_file_metadata(file_id)
+    except FileNotFoundError:
+        return None
+
+    return file_metadata.file_name
+
+
+def get_config_filename(file_id: Optional[str]) -> str:
+    if not file_id:
+        return None
+
+    try:
+        db = get_database_session()
+        file_metadata = db.config_manager.get_file_metadata(file_id)
+    except FileNotFoundError:
+        return None
+
+    return file_metadata.file_name
