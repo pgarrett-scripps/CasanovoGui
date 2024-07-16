@@ -6,9 +6,9 @@ from datetime import date
 import streamlit as st
 import pandas as pd
 
-from casanovogui.dialogs import delete_option, tag_option, view_option, download_option
+from dialogs import delete_option, tag_option, view_option, download_option
 from simple_db import SpectraFileMetadata
-from utils import refresh_de_key, get_database_session, filter_by_tags
+from utils import get_database_session, filter_by_tags
 
 
 def batch_upload_option(uploaded_files):

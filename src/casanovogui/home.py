@@ -7,7 +7,7 @@ import requests
 import streamlit as st
 import torch
 
-from simple_db import CasanovoDB, ModelFileMetadata, ConfigFileMetadata, SpectraFileMetadata
+from simple_db import ModelFileMetadata, ConfigFileMetadata, SpectraFileMetadata
 from utils import get_database_session, get_storage_path
 
 db = get_database_session()
@@ -47,11 +47,31 @@ def download_file(url, filename):
     st.success(f"{filename} downloaded!")
 
 
+def get_128_spectra():
+    url = 'https://raw.githubusercontent.com/Noble-Lab/casanovo/main/sample_data/sample_preprocessed_spectra.mgf'
+
+    if not os.path.exists('sample_preprocessed_spectra.mgf'):
+        download_file(url, 'sample_preprocessed_spectra.mgf')
+
+def get_2_spectra():
+    get_128_spectra()
+
+    # keep first 81 lines
+    with open('sample_preprocessed_spectra.mgf', 'r') as f:
+        lines = f.readlines()
+        with open('sample_preprocessed_2spectra.mgf', 'w') as f2:
+            f2.writelines(lines[:81])
+
+
+
+
 @st.experimental_fragment
 def default_spectra():
     st.subheader("Spectra", divider='blue')
-    sample2_spectra_link = r"./static/sample_preprocessed_2spectra.mgf"
-    sample128_spectra_link = r"./static/sample_preprocessed_128spectra.mgf"
+
+    get_128_spectra()
+    get_2_spectra()
+
     c1, c2 = st.columns([1, 1])
     if c1.button('2 spectra mgf', use_container_width=True):
         metadata = SpectraFileMetadata(
@@ -65,7 +85,7 @@ def default_spectra():
             instrument='Unknown',
             annotated=True,
         )
-        db.spectra_files_manager.add_file(sample2_spectra_link, metadata, copy=True)
+        db.spectra_files_manager.add_file('sample_preprocessed_2spectra.mgf', metadata, copy=True)
         st.toast("Spectra added successfully", icon="✅")
 
     if c2.button('128 spectra mgf', use_container_width=True):
@@ -80,7 +100,7 @@ def default_spectra():
             instrument='Unknown',
             annotated=True,
         )
-        db.spectra_files_manager.add_file(sample128_spectra_link, metadata, copy=True)
+        db.spectra_files_manager.add_file('sample_preprocessed_spectra.mgf', metadata, copy=True)
         st.toast("Spectra added successfully", icon="✅")
 
 
