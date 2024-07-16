@@ -1,5 +1,3 @@
-import streamlit as st
+from evaluate import run
 
-st.set_page_config(page_title="Evaluate", layout="wide")
-st.title('Evaluate')
-st.warning('This page is under construction')
+run()

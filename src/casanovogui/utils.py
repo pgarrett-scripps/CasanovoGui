@@ -9,12 +9,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from platformdirs import user_data_dir
 
-from version import VERSION
 from simple_db import CasanovoDB
 
 
 def get_storage_path():
-    data_dir = user_data_dir(appname="CasanovoGui", version=VERSION)
+    data_dir = user_data_dir(appname="CasanovoGui", version="0.1.0")
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     return data_dir
