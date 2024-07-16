@@ -419,10 +419,8 @@ def run():
     entries = map(lambda e: e.dict(), entries)
     df = pd.DataFrame(entries)
 
-
     if df.empty:
-        st.write("No entries found.")
-        st.stop()
+        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags", "model", "spectra", "status"])
 
     rename_map = {
         "file_id": "ID",
@@ -439,7 +437,8 @@ def run():
     df.rename(columns=rename_map, inplace=True)
     df['Date'] = pd.to_datetime(df['Date'])
 
-    df = filter_by_tags(df, key='Main_Page_Filter')
+    df['Model'] = df['Model'].apply(get_model_filename)
+    df['Spectra'] = df['Spectra'].apply(get_spectra_filename)
 
     if 'Model' not in df.columns:
         df['Model'] = None
@@ -447,8 +446,10 @@ def run():
     if 'Spectra' not in df.columns:
         df['Spectra'] = None
 
-    df['Model'] = df['Model'].apply(get_model_filename)
-    df['Spectra'] = df['Spectra'].apply(get_spectra_filename)
+    df = filter_by_tags(df, key='Main_Page_Filter')
+
+
+
 
     # Display the editable dataframe
     selection = st.dataframe(df,

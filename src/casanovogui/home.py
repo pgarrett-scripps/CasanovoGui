@@ -110,7 +110,7 @@ default_spectra()
 @st.experimental_fragment
 def default_models():
     st.subheader('Models', divider='blue')
-    nontryptic_link = 'https://github.com/Noble-Lab/casanovo/releases/download/v4.2.0/casanovo_nontryptic.ckpt'
+    nontryptic_link = 'https://github.com/Noble-Lab/casanovo/releases/download/v4.0.0/casanovo_nontryptic.ckpt'
     tryptic_link = 'https://github.com/Noble-Lab/casanovo/releases/download/v4.0.0/casanovo_massivekb.ckpt'
 
     c1, c2 = st.columns([1, 1])

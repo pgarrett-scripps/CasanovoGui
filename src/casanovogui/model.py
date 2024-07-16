@@ -6,7 +6,7 @@ from datetime import date
 import streamlit as st
 import pandas as pd
 
-from dialogs import download_option, tag_option, view_option
+from dialogs import download_option, tag_option, view_option, delete_option
 from simple_db import ModelFileMetadata
 from utils import get_database_session, filter_by_tags, get_config_filename
 
@@ -143,36 +143,6 @@ def edit_option(entry: ModelFileMetadata):
         st.rerun()
 
 
-@st.experimental_dialog("Delete Config")
-def delete_option(file_ids: list[str]):
-    # Get all file metadata entries
-    entries = [get_database_session().models_manager.get_file_metadata(file_id) for file_id in file_ids]
-    entries = map(lambda e: e.dict(), entries)
-    df = pd.DataFrame(entries)
-
-    rename_map = {
-        "file_id": "ID",
-        "file_name": "Name",
-        "description": "Description",
-        "date": "Date",
-        "tags": "Tags"
-    }
-
-    # Customize the dataframe for display
-    df.rename(columns=rename_map, inplace=True)
-
-    st.write("Are you sure you want to delete the following entries?")
-    st.dataframe(df, hide_index=True, column_order=["Name", "Description", "Date", "Tags"])
-
-    c1, c2 = st.columns([1, 1])
-    if c1.button("Delete", use_container_width=True, key='delete_option_dialog delete'):
-        for file_id in file_ids:
-            get_database_session().config_manager.delete_file(file_id)
-        st.rerun()
-    if c2.button("Cancel", type='primary', use_container_width=True, key='delete_option_dialog cancel'):
-        st.rerun()
-
-
 def run():
     # Set up the Streamlit page configuration
     st.set_page_config(page_title=f"Model", layout="wide")
@@ -191,7 +161,7 @@ def run():
 
     if df.empty:
         st.write("No entries found.")
-        st.stop()
+        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags", "source", "status", "config"])
 
     rename_map = {
         "file_id": "ID",

@@ -244,7 +244,7 @@ def run():
 
     if df.empty:
         st.write("No entries found.")
-        st.stop()
+        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags"])
 
     rename_map = {
         "file_id": "ID",
