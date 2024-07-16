@@ -4,11 +4,11 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install && apt-get install -y python3-pip
 
+RUN python3 -m pip install --upgrade pip
+
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
-
-RUN pip install platformdirs
 
 COPY . .
 

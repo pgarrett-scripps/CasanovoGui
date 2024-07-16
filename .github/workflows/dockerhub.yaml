@@ -1,5 +1,5 @@
 name: Publish Docker
-on: [push]
+on: [published]
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -9,5 +9,5 @@ jobs:
       uses: elgohr/Publish-Docker-Github-Action@v4
       with:
         name: pgarrettscripps/casanovogui
-        username: ${{ secrets.DOCKER_HUB_USERNAME }}
-        password: ${{ secrets.DOCKER_HUB_TOKEN }}
+        username: ${{ secrets.DOCKER_HUB_USERNAME}}
+        password: ${{ secrets.DOCKER_HUB_TOKEN}}
