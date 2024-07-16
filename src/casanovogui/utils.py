@@ -13,7 +13,7 @@ from simple_db import CasanovoDB
 
 
 def get_storage_path():
-    data_dir = user_data_dir(appname="CasanovoGui", version="0.1.0")
+    data_dir = user_data_dir(appname="CasanovoGui", version="0.2")
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
     return data_dir

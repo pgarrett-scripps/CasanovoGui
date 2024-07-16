@@ -1,10 +1,10 @@
-    [server]
-    maxUploadSize = 2000
-    enableStaticServing = true
+[server]
+maxUploadSize = 2000
+enableStaticServing = true
 
-    [theme]
-    primaryColor="#3282B8"
-    backgroundColor="#f1f0e8"
-    secondaryBackgroundColor="#eee0c9"
-    textColor="#45474b"
-    font="sans serif"
+[theme]
+primaryColor="#3282B8"
+backgroundColor="#f1f0e8"
+secondaryBackgroundColor="#eee0c9"
+textColor="#45474b"
+font="sans serif"

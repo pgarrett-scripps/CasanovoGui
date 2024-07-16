@@ -9,7 +9,7 @@ def main():
 
     # Run the Streamlit app with specified arguments
     process = subprocess.Popen(
-        ["streamlit", "run", script_path, "--server.maxUploadSize=2048", "--server.address=0.0.0.0"],
+        ["streamlit", "run", script_path, f"--server.maxUploadSize={int(1024*10)}"],
     )
 
     def signal_handler(sig, frame):
