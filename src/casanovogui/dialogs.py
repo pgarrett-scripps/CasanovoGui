@@ -4,12 +4,11 @@ import zipfile
 
 import pandas as pd
 
-from simple_db import FileManager
+from advanced_db import FileManager
 import streamlit as st
 
 
-
-@st.experimental_dialog("Download Entries")
+@st.dialog("Download Entries")
 def download_option(file_ids: list[str], manager: FileManager):
     f1, f2 = st.columns([3, 1])
     c1, c2 = st.columns([1, 1])
@@ -20,7 +19,8 @@ def download_option(file_ids: list[str], manager: FileManager):
         file_path = manager.retrieve_file_path(file_id)
 
         file_basename = f1.text_input("File Name", value=metadata.file_name)
-        file_extension = f2.text_input("File Type", value=metadata.file_type, disabled=True)
+        file_extension = f2.text_input(
+            "File Type", value=metadata.file_type, disabled=True)
         file_name = f"{file_basename}.{file_extension}"
         with open(file_path, "rb") as file:
             btn = c1.download_button(
@@ -32,9 +32,12 @@ def download_option(file_ids: list[str], manager: FileManager):
                 type='primary'
             )
     else:
-        file_paths = [manager.retrieve_file_path(file_id) for file_id in file_ids]
-        file_names = [manager.get_file_metadata(file_id).file_name for file_id in file_ids]
-        file_extensions = [manager.get_file_metadata(file_id).file_type for file_id in file_ids]
+        file_paths = [manager.retrieve_file_path(
+            file_id) for file_id in file_ids]
+        file_names = [manager.get_file_metadata(
+            file_id).file_name for file_id in file_ids]
+        file_extensions = [manager.get_file_metadata(
+            file_id).file_type for file_id in file_ids]
 
         file_basename = f1.text_input("Zip File Name", value="configs")
         file_extension = f2.text_input("File Type", value="zip", disabled=True)
@@ -67,10 +70,11 @@ def download_option(file_ids: list[str], manager: FileManager):
         st.rerun()
 
 
-@st.experimental_dialog("Tag Entries")
+@st.dialog("Tag Entries")
 def tag_option(file_ids: list[str], manager: FileManager):
     # add tags to the selected files
-    tags = set([tag.strip() for tag in st.text_input("Tags (comma-separated)").split(',') if tag.strip()])
+    tags = set([tag.strip() for tag in st.text_input(
+        "Tags (comma-separated)").split(',') if tag.strip()])
 
     c1, c2 = st.columns([1, 1])
 
@@ -89,7 +93,7 @@ def tag_option(file_ids: list[str], manager: FileManager):
         st.rerun()
 
 
-@st.experimental_dialog("Delete Config")
+@st.dialog("Delete Config")
 def delete_option(file_ids: list[str], manager: FileManager):
     # Get all file metadata entries
     entries = [manager.get_file_metadata(file_id) for file_id in file_ids]
@@ -108,7 +112,8 @@ def delete_option(file_ids: list[str], manager: FileManager):
     df.rename(columns=rename_map, inplace=True)
 
     st.write("Are you sure you want to delete the following entries?")
-    st.dataframe(df, hide_index=True, column_order=["Name", "Description", "Date", "Tags"], use_container_width=True)
+    st.dataframe(df, hide_index=True, column_order=[
+                 "Name", "Description", "Date", "Tags"], use_container_width=True)
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Delete", use_container_width=True, key='delete_option_dialog delete'):
@@ -119,7 +124,7 @@ def delete_option(file_ids: list[str], manager: FileManager):
         st.rerun()
 
 
-@st.experimental_dialog("View Config", width="large")
+@st.dialog("View Config", width="large")
 def view_option(file_id: str, manager: FileManager, mode: str = 'file'):
 
     if mode not in ['file', 'log', 'both']:

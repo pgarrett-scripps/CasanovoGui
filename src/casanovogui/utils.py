@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from platformdirs import user_data_dir
 
-from simple_db import CasanovoDB
+from advanced_db import CasanovoDB
 
 
 def get_storage_path():

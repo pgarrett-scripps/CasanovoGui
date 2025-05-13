@@ -7,8 +7,9 @@ import streamlit as st
 import pandas as pd
 
 from dialogs import delete_option, tag_option, download_option, view_option
-from simple_db import SearchMetadata
+from advanced_db import SearchMetadata
 from utils import get_database_session, filter_by_tags, get_model_filename, get_spectra_filename
+from login import display_login_ui, get_current_user, require_login
 
 
 def single_upload(uploaded_file):
@@ -19,16 +20,20 @@ def single_upload(uploaded_file):
         file_extension = file_extension.lstrip(".")
 
         c1, c2 = st.columns([8, 2])
-        file_name = c1.text_input("Base File Name", value=base_file_name, disabled=False)
-        file_type = c2.text_input("File Extension", value=file_extension, disabled=True)
+        file_name = c1.text_input(
+            "Base File Name", value=base_file_name, disabled=False)
+        file_type = c2.text_input(
+            "File Extension", value=file_extension, disabled=True)
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
+        tags = [tag for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag]
 
     model_id = None
     with t2:
-        model_ids = get_database_session().models_manager.get_all_metadata()
+        model_ids = get_database_session().models_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), model_ids))
 
         if df.empty:
@@ -72,7 +77,8 @@ def single_upload(uploaded_file):
 
     spectra_id = None
     with t3:
-        spectra_ids = get_database_session().spectra_files_manager.get_all_metadata()
+        spectra_ids = get_database_session().spectra_files_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), spectra_ids))
 
         if df.empty:
@@ -130,7 +136,8 @@ def single_upload(uploaded_file):
             all_tags.update(model_tags)
 
         if spectra_id is not None:
-            spectra_tags = get_database_session().spectra_files_manager.get_file_metadata(spectra_id).tags
+            spectra_tags = get_database_session(
+            ).spectra_files_manager.get_file_metadata(spectra_id).tags
             all_tags.update(spectra_tags)
 
         metadata = SearchMetadata(
@@ -145,7 +152,8 @@ def single_upload(uploaded_file):
             status="completed"
         )
 
-        get_database_session().searches_manager.add_file(tmp_path, metadata)
+        get_database_session().searches_manager.add_file(
+            tmp_path, metadata, True, get_current_user()['id'])
         st.rerun()
 
     if c2.button("Cancel", use_container_width=True):
@@ -156,7 +164,8 @@ def batch_upload(uploaded_files):
     file_name = st.text_input("File Suffix", value='', disabled=False)
     description = st.text_area("Description")
     date_input = st.date_input("Date", value=date.today())
-    tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
+    tags = [tag for tag in st.text_input(
+        "Tags (comma-separated)").split(",") if tag]
 
     c1, c2 = st.columns(2)
     if c1.button("Submit", type='primary', use_container_width=True, disabled=len(uploaded_files) == 0):
@@ -165,7 +174,8 @@ def batch_upload(uploaded_files):
                 tmp.write(uploaded_file.getbuffer())
                 tmp_path = tmp.name
 
-            base_file_name, file_extension = os.path.splitext(uploaded_file.name)
+            base_file_name, file_extension = os.path.splitext(
+                uploaded_file.name)
             file_extension = file_extension.lstrip(".")
 
             metadata = SearchMetadata(
@@ -180,7 +190,8 @@ def batch_upload(uploaded_files):
                 status="completed"
             )
 
-            get_database_session().searches_manager.add_file(tmp_path, metadata)
+            get_database_session().searches_manager.add_file(
+                tmp_path, metadata, True, get_current_user()['id'])
 
         st.rerun()
 
@@ -188,9 +199,10 @@ def batch_upload(uploaded_files):
         st.rerun()
 
 
-@st.experimental_dialog("Upload File", width='large')
+@st.dialog("Upload File", width='large')
 def upload_option():
-    uploaded_file = st.file_uploader("Upload File", type='mztab', accept_multiple_files=True)
+    uploaded_file = st.file_uploader(
+        "Upload File", type='mztab', accept_multiple_files=True)
     if uploaded_file and len(uploaded_file) == 1:
         single_upload(uploaded_file[0])
     elif uploaded_file and len(uploaded_file) > 1:
@@ -199,7 +211,7 @@ def upload_option():
         st.warning("Please upload a file.")
 
 
-@st.experimental_dialog("New Search", width='large')
+@st.dialog("New Search", width='large')
 def add_option():
     selected_model_id = None
     selected_spectra_ids = []
@@ -210,14 +222,18 @@ def add_option():
 
     with t1:
         c1, c2 = st.columns([8, 2])
-        file_name = c1.text_input("Base File Name", value='My Search', disabled=False)
-        file_type = c2.text_input("File Extension", value='mztab', disabled=True)
+        file_name = c1.text_input(
+            "Base File Name", value='My Search', disabled=False)
+        file_type = c2.text_input(
+            "File Extension", value='mztab', disabled=True)
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = sorted(list(set([tag.strip() for tag in st.text_input("Tags (comma-separated)").split(",") if tag])))
+        tags = sorted(list(set([tag.strip() for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag])))
 
     with t2:
-        model_ids = db.models_manager.get_all_metadata()
+        model_ids = db.models_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), model_ids))
 
         if df.empty:
@@ -261,7 +277,8 @@ def add_option():
 
     with t3:
         st.subheader("Select Spectra", divider='blue')
-        spectra_ids = db.spectra_files_manager.get_all_metadata()
+        spectra_ids = db.spectra_files_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), spectra_ids))
         if df.empty:
             st.warning("No spectra found.")
@@ -300,13 +317,16 @@ def add_option():
                                          "Annotated": st.column_config.CheckboxColumn(disabled=True, width='small')
                                      },
                                      )
-            selected_indexes = selection['selection']['rows'] if len(selection['selection']['rows']) > 0 else []
-            selected_spectra_ids = [spectra_ids[i].file_id for i in selected_indexes]
+            selected_indexes = selection['selection']['rows'] if len(
+                selection['selection']['rows']) > 0 else []
+            selected_spectra_ids = [
+                spectra_ids[i].file_id for i in selected_indexes]
 
     with t4:
         st.subheader("Select Config", divider='blue')
 
-        config_ids = db.config_manager.get_all_metadata()
+        config_ids = db.config_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), config_ids))
         if df.empty:
             st.warning("No configs found.")
@@ -332,7 +352,8 @@ def add_option():
                                      on_select='rerun',
                                      hide_index=True,
                                      use_container_width=True,
-                                     column_order=["Name", "Description", "Date", "Tags"],
+                                     column_order=[
+                                         "Name", "Description", "Date", "Tags"],
                                      column_config={
 
                                          "Name": st.column_config.TextColumn(disabled=True, width='medium'),
@@ -355,11 +376,13 @@ def add_option():
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=len(selected_spectra_ids) == 0
-                                                                              or selected_model_id is None):
-        model_tags = db.models_manager.get_file_metadata(selected_model_id).tags
+                 or selected_model_id is None):
+        model_tags = db.models_manager.get_file_metadata(
+            selected_model_id).tags
 
         for selected_spectra_id in selected_spectra_ids:
-            spectra_tags = db.spectra_files_manager.get_file_metadata(selected_spectra_id).tags
+            spectra_tags = db.spectra_files_manager.get_file_metadata(
+                selected_spectra_id).tags
 
             combined_tags = list(set(model_tags + spectra_tags + tags))
 
@@ -372,27 +395,31 @@ def add_option():
                 tags=combined_tags,
                 model=selected_model_id,
                 spectra=selected_spectra_id,
-                status="pending"
+                status="pending",
+                owner_id=get_current_user()['id'],
             )
 
-            db.search(metadata, selected_config_id)
+            db.search(metadata, selected_config_id, get_current_user()['id'])
 
         st.rerun()
     if c2.button("Cancel", use_container_width=True):
         st.rerun()
 
 
-@st.experimental_dialog("Edit Search Metadata")
+@st.dialog("Edit Search Metadata")
 def edit_option(entry: SearchMetadata):
     manager = get_database_session().searches_manager
 
     st.subheader("Search Metadata", divider='blue')
     c1, c2 = st.columns([8, 2])
-    entry.file_name = c1.text_input("File Name", value=entry.file_name, disabled=False)
-    entry.file_type = c2.text_input("File Type", value=entry.file_type, disabled=True)
+    entry.file_name = c1.text_input(
+        "File Name", value=entry.file_name, disabled=False)
+    entry.file_type = c2.text_input(
+        "File Type", value=entry.file_type, disabled=True)
     entry.description = st.text_input("Description", value=entry.description)
     entry.date = st.date_input("Date", value=pd.to_datetime(entry.date).date())
-    entry.tags = sorted(list(set([tag.strip() for tag in st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",") if tag])))
+    entry.tags = sorted(list(set([tag.strip() for tag in st.text_input(
+        "Tags (comma-separated)", value=",".join(entry.tags)).split(",") if tag])))
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True):
@@ -408,19 +435,29 @@ def run():
     c1, c2 = st.columns([5, 3])
 
     c1.title("Search")
-    st.caption("Use Casanovo to search a spectra file(s) using a pretrained model. Or upload an existing search.")
+    st.caption(
+        "Use Casanovo to search a spectra file(s) using a pretrained model. Or upload an existing search.")
 
+    with st.sidebar:
+        display_login_ui()
+
+    user_data = get_current_user()
+
+    if user_data is None:
+        st.warning("Please log in to access this page.")
+        return
 
     db = get_database_session()
     manager = db.searches_manager
 
     # Get all file metadata entries
-    entries = manager.get_all_metadata()
+    entries = manager.get_all_metadata(user_data['id'])
     entries = map(lambda e: e.dict(), entries)
     df = pd.DataFrame(entries)
 
     if df.empty:
-        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags", "model", "spectra", "status"])
+        df = pd.DataFrame(columns=[
+                          "file_id", "file_name", "description", "date", "tags", "model", "spectra", "status"])
 
     rename_map = {
         "file_id": "ID",
@@ -448,28 +485,26 @@ def run():
 
     df = filter_by_tags(df, key='Main_Page_Filter')
 
-
-
-
     # Display the editable dataframe
     selection = st.dataframe(df,
-                               hide_index=True,
-                               column_order=["Name", "Description", "Date", "Tags", "Model",
-                                             "Spectra", "Status"],
-                               column_config={
-                                   "Name": st.column_config.TextColumn(disabled=True, width='medium'),
-                                   "Description": st.column_config.TextColumn(disabled=True, width='medium'),
-                                   "Date": st.column_config.DateColumn(disabled=True, width='small'),
-                                   "Tags": st.column_config.ListColumn(width='small'),
-                                   "Model": st.column_config.TextColumn(disabled=True, width='small'),
-                                   "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
-                                   "Status": st.column_config.TextColumn(disabled=True, width='small')
-                               },
-                               use_container_width=True,
+                             hide_index=True,
+                             column_order=["Name", "Description", "Date", "Tags", "Model",
+                                           "Spectra", "Status"],
+                             column_config={
+                                 "Name": st.column_config.TextColumn(disabled=True, width='medium'),
+                                 "Description": st.column_config.TextColumn(disabled=True, width='medium'),
+                                 "Date": st.column_config.DateColumn(disabled=True, width='small'),
+                                 "Tags": st.column_config.ListColumn(width='small'),
+                                 "Model": st.column_config.TextColumn(disabled=True, width='small'),
+                                 "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
+                                 "Status": st.column_config.TextColumn(disabled=True, width='small')
+                             },
+                             use_container_width=True,
                              selection_mode='multi-row', on_select='rerun')
 
     selected_rows = selection['selection']['rows']
-    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else []
+    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else [
+    ]
 
     c1, c2, c3, c4, c5, c6, c7, c8 = c2.columns(8)
 

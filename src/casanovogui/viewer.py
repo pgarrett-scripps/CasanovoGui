@@ -12,11 +12,22 @@ import matplotlib.colors as mcolors
 
 from utils import (generate_annonated_spectra_plotly, get_database_session, filter_by_tags, get_model_filename,
                    get_spectra_filename)
+from login import display_login_ui, get_current_user
+
 
 def run():
 
     st.set_page_config(page_title="Results Viewer", layout="wide")
     st.title('Results Viewer')
+
+    with st.sidebar:
+        display_login_ui()
+
+    user_data = get_current_user()
+
+    if user_data is None:
+        st.warning("Please log in to access this page.")
+        return
 
     st.subheader('Selected Search', divider=True)
 
@@ -25,12 +36,12 @@ def run():
 
     selected_search_id = st.session_state.selected_search_id
 
-
-    @st.experimental_dialog(title="Select Search", width='large')
+    @st.dialog(title="Select Search", width='large')
     def update_current_search():
         # Get all file metadata entries
         db = get_database_session()
-        entries = db.searches_manager.get_all_metadata()
+        entries = db.searches_manager.get_all_metadata(
+            get_current_user()['id'])
         df = pd.DataFrame(map(lambda e: e.dict(), entries))
 
         rename_map = {
@@ -67,7 +78,8 @@ def run():
                                  on_select='rerun',
                                  hide_index=True,
                                  use_container_width=True,
-                                 column_order=['Name', 'Description', 'Date', 'Tags', 'Model ID', 'Spectra ID', 'Status'],
+                                 column_order=[
+                                     'Name', 'Description', 'Date', 'Tags', 'Model ID', 'Spectra ID', 'Status'],
                                  column_config={
                                      "Name": st.column_config.TextColumn(disabled=True, width='medium'),
                                      "Description": st.column_config.TextColumn(disabled=True, width='medium'),
@@ -76,7 +88,7 @@ def run():
                                      "Model": st.column_config.TextColumn(disabled=True, width='small'),
                                      "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
                                  },
-                                    )
+                                 )
 
         selected_row = selection['selection']['rows'][0] if selection['selection']['rows'] else None
 
@@ -89,7 +101,6 @@ def run():
 
         elif c2.button('Cancel', use_container_width=True):
             st.stop()
-
 
     if st.button('Update', type='primary', use_container_width=True):
         update_current_search()
@@ -124,18 +135,17 @@ def run():
         st.dataframe(df,
                      hide_index=True,
                      use_container_width=True,
-                     column_order=['Name', 'Description', 'Date', 'Tags', 'Model ID', 'Spectra ID', 'Status'],
+                     column_order=['Name', 'Description', 'Date',
+                                   'Tags', 'Model ID', 'Spectra ID', 'Status'],
                      column_config={
-                                   "Name": st.column_config.TextColumn(disabled=True, width='medium'),
-                                   "Description": st.column_config.TextColumn(disabled=True, width='medium'),
-                                   "Date": st.column_config.DateColumn(disabled=True, width='small'),
-                                   "Tags": st.column_config.ListColumn(width='small'),
-                                    "Model": st.column_config.TextColumn(disabled=True, width='small'),
-                                    "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
-                               },
+                         "Name": st.column_config.TextColumn(disabled=True, width='medium'),
+                         "Description": st.column_config.TextColumn(disabled=True, width='medium'),
+                         "Date": st.column_config.DateColumn(disabled=True, width='small'),
+                         "Tags": st.column_config.ListColumn(width='small'),
+                         "Model": st.column_config.TextColumn(disabled=True, width='small'),
+                         "Spectra": st.column_config.TextColumn(disabled=True, width='small'),
+                     },
                      )
-
-
 
     db = get_database_session()
     manager = db.searches_manager
@@ -155,16 +165,13 @@ def run():
         def __getitem__(self, index: int) -> dict:
             return self.get_spectrum_by_index(index)
 
-
     def read_mgf_index_file(source) -> MGF_Index:
         return MGF_Index(source, use_header=True, read_charges=False)
-
 
     def get_spectrum_by_index(mgf_file, index) -> dict:
         with open(mgf_file) as f:
             mgf_reader = read_mgf_index_file(f)
             return mgf_reader[index]
-
 
     def casanovo_to_df(file):
         header, data, intro = None, [], []
@@ -180,29 +187,34 @@ def run():
         df = pd.DataFrame(data, columns=header)
         return df, intro
 
-
     @st.cache_data()
     def get_search_df(search_id):
         search_path = db.searches_manager.retrieve_file_path(search_id)
 
         if search_path is None or not os.path.exists(search_path):
             st.error('Search file not found')
-            st.error('Search could have failed or is still bring processed. Please try again later.')
+            st.error(
+                'Search could have failed or is still bring processed. Please try again later.')
             st.stop()
 
         with open(search_path) as f:
             search_df, intro = casanovo_to_df(f)
 
         # spectra_ref: ms_run[1]:index=118 (fix?)
-        search_df['ref_index'] = search_df['spectra_ref'].str.extract(r'index=(\d+)').astype(int)
+        search_df['ref_index'] = search_df['spectra_ref'].str.extract(
+            r'index=(\d+)').astype(int)
 
-        search_df['proforma_sequence'] = search_df['sequence'].apply(pt.convert_casanovo_sequence)
-        search_df['calc_mass_to_charge'] = search_df['calc_mass_to_charge'].astype(float)
-        search_df['exp_mass_to_charge'] = search_df['exp_mass_to_charge'].astype(float)
+        search_df['proforma_sequence'] = search_df['sequence'].apply(
+            pt.convert_casanovo_sequence)
+        search_df['calc_mass_to_charge'] = search_df['calc_mass_to_charge'].astype(
+            float)
+        search_df['exp_mass_to_charge'] = search_df['exp_mass_to_charge'].astype(
+            float)
 
         search_df['ppm_error'] = search_df.apply(lambda x: pt.ppm_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']),
                                                  axis=1)
-        search_df['dalton_error'] = search_df.apply(lambda x: pt.dalton_error(x['calc_mass_to_charge'], x['exp_mass_to_charge']), axis=1)
+        search_df['dalton_error'] = search_df.apply(lambda x: pt.dalton_error(
+            x['calc_mass_to_charge'], x['exp_mass_to_charge']), axis=1)
 
         rename_map = {
             "proforma_sequence": "Sequence",
@@ -218,12 +230,10 @@ def run():
 
         return search_df
 
-
     # get the log file and show it
     if selected_search_id is None:
         st.warning('No search selected')
         st.stop()
-
 
     try:
         search_metadata = manager.get_file_metadata(selected_search_id)
@@ -233,11 +243,13 @@ def run():
         st.stop()
 
     try:
-        spectra_metadata = db.spectra_files_manager.get_file_metadata(spectra_id)
+        spectra_metadata = db.spectra_files_manager.get_file_metadata(
+            spectra_id)
         spectra_path = db.spectra_files_manager.retrieve_file_path(spectra_id)
     except FileNotFoundError as e:
         st.error('Spectra Metadata not found')
-        st.error('Spectra file could have been deleted or moved. Please re-upload the file.')
+        st.error(
+            'Spectra file could have been deleted or moved. Please re-upload the file.')
         st.stop()
 
     if spectra_metadata.file_type == 'mzML':
@@ -245,7 +257,8 @@ def run():
     elif spectra_metadata.file_type == 'mgf':
         pass
     else:
-        raise ValueError(f'Unsupported file type: {spectra_metadata.file_type}')
+        raise ValueError(
+            f'Unsupported file type: {spectra_metadata.file_type}')
 
     search_id = search_metadata.file_id
     search_path = db.searches_manager.retrieve_file_path(search_id)
@@ -254,18 +267,21 @@ def run():
 
     # plotly scatter plot of ppm_error vs score
     st.subheader('Search Results', divider=True)
-    st.caption('Select a point to view the spectrum, or use the lass or box tool to select multiple points')
-
+    st.caption(
+        'Select a point to view the spectrum, or use the lass or box tool to select multiple points')
 
     c1, c2 = st.columns([1, 1])
     min_ppm_error = c1.number_input('Min PPM Error', value=-50)
     max_ppm_error = c2.number_input('Max PPM Error', value=50)
-    filter_by_best_peptide = c1.checkbox('Filter by best (peptide, charge) pair', value=True)
+    filter_by_best_peptide = c1.checkbox(
+        'Filter by best (peptide, charge) pair', value=True)
 
-    search_df = search_df[(search_df['PPM Error'] > min_ppm_error) & (search_df['PPM Error'] < max_ppm_error)]
+    search_df = search_df[(search_df['PPM Error'] > min_ppm_error) & (
+        search_df['PPM Error'] < max_ppm_error)]
 
     if filter_by_best_peptide:
-        search_df = search_df.sort_values('Score', ascending=False).groupby(['Sequence', 'Charge']).head(1)
+        search_df = search_df.sort_values('Score', ascending=False).groupby([
+            'Sequence', 'Charge']).head(1)
 
     st.divider()
 
@@ -304,7 +320,8 @@ def run():
 
         st.subheader(f'Spectra Viewer: {peptide}/{charge}', divider=True)
 
-        scores = list(map(float, selected_row['opt_ms_run[1]_aa_scores'].split(',')))
+        scores = list(
+            map(float, selected_row['opt_ms_run[1]_aa_scores'].split(',')))
         unmod_peptide = pt.strip_mods(peptide)
 
         # Normalize scores to the range [0, 1]
@@ -320,12 +337,13 @@ def run():
         # Wrap the colored HTML in a centered div
         centered_html = f'<div style="text-align: center;">{colored_html}</div>'
 
-
-        generate_annonated_spectra_plotly(peptide, charge, mz_spectra, intensity_spectra)
+        generate_annonated_spectra_plotly(
+            peptide, charge, mz_spectra, intensity_spectra)
 
         st.subheader('AA Scores', divider=True)
         # Display the centered colored peptide string using Streamlit
         st.markdown(centered_html, unsafe_allow_html=True)
 
-        score_df = pd.DataFrame({'Amino Acid': list(unmod_peptide), 'Score': scores})
+        score_df = pd.DataFrame(
+            {'Amino Acid': list(unmod_peptide), 'Score': scores})
         st.dataframe(score_df, use_container_width=True, hide_index=True)

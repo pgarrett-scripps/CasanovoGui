@@ -9,11 +9,12 @@ import streamlit as st
 import yaml
 
 from dialogs import download_option, tag_option, delete_option, view_option
-from simple_db import ConfigFileMetadata
+from advanced_db import ConfigFileMetadata
 from utils import get_database_session, filter_by_tags
+from login import display_login_ui, get_current_user, require_login
 
 
-@st.experimental_dialog("Create config", width="large")
+@st.dialog("Create config", width="large")
 def create_entry():
     tabs = st.tabs(['Metadata', 'Inference', 'Training', 'Spectrum Processing',
                     'Model Architecture', 'Training/Inference', 'Residue Vocabulary'])
@@ -25,20 +26,26 @@ def create_entry():
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
+        tags = [tag for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag]
 
     with tabs[1]:
         c1, c2, c3 = st.columns(3)
-        precursor_mass_tol = c1.number_input("Precursor Mass Tolerance (ppm)", value=50)
-        isotope_error_min_range = c2.number_input("Isotope Error Min Range", value=0)
-        isotope_error_max_range = c3.number_input("Isotope Error Max Range", value=1)
+        precursor_mass_tol = c1.number_input(
+            "Precursor Mass Tolerance (ppm)", value=50)
+        isotope_error_min_range = c2.number_input(
+            "Isotope Error Min Range", value=0)
+        isotope_error_max_range = c3.number_input(
+            "Isotope Error Max Range", value=1)
         c1, c2, c3 = st.columns(3)
         min_peptide_len = c1.number_input("Minimum Peptide Length", value=6)
         predict_batch_size = c2.number_input("Predict Batch Size", value=1024)
         n_beams = c3.number_input("Number of Beams", value=1)
         c1, c2, c3 = st.columns(3)
-        top_match = c1.number_input("Number of PSMs for Each Spectrum", value=1)
-        accelerator = c2.selectbox("Hardware Accelerator", ["cpu", "gpu", "tpu", "ipu", "hpu", "mps", "auto"], index=6)
+        top_match = c1.number_input(
+            "Number of PSMs for Each Spectrum", value=1)
+        accelerator = c2.selectbox("Hardware Accelerator", [
+                                   "cpu", "gpu", "tpu", "ipu", "hpu", "mps", "auto"], index=6)
         devices = c3.text_input("Devices", value="")
 
     with tabs[2]:
@@ -48,43 +55,54 @@ def create_entry():
         tb_summarywriter = c3.text_input("Tensorboard Directory")
         c1, c2, c3 = st.columns(3)
         save_top_k = c1.number_input("Save Top K Model Checkpoints", value=5)
-        model_save_folder_path = c2.text_input("Model Save Folder Path", value="")
-        val_check_interval = c3.number_input("Validation Check Interval", value=50000)
+        model_save_folder_path = c2.text_input(
+            "Model Save Folder Path", value="")
+        val_check_interval = c3.number_input(
+            "Validation Check Interval", value=50000)
 
     with tabs[3]:
         c1, c2, c3 = st.columns(3)
-        n_peaks = c1.number_input("Number of Most Intense Peaks to Retain", value=150)
+        n_peaks = c1.number_input(
+            "Number of Most Intense Peaks to Retain", value=150)
         min_mz = c2.number_input("Minimum Peak m/z", value=50.0)
         max_mz = c3.number_input("Maximum Peak m/z", value=2500.0)
         c1, c2, c3 = st.columns(3)
         min_intensity = c1.number_input("Minimum Peak Intensity", value=0.01)
-        remove_precursor_tol = c2.number_input("Remove Precursor Tolerance", value=2.0)
+        remove_precursor_tol = c2.number_input(
+            "Remove Precursor Tolerance", value=2.0)
         max_charge = c3.number_input("Maximum Precursor Charge", value=10)
 
     with tabs[4]:
         c1, c2, c3 = st.columns(3)
-        dim_model = c1.number_input("Dimensionality of Latent Representations", value=512)
+        dim_model = c1.number_input(
+            "Dimensionality of Latent Representations", value=512)
         n_head = c2.number_input("Number of Attention Heads", value=8)
-        dim_feedforward = c3.number_input("Dimensionality of Fully Connected Layers", value=1024)
+        dim_feedforward = c3.number_input(
+            "Dimensionality of Fully Connected Layers", value=1024)
         c1, c2, c3 = st.columns(3)
         n_layers = c1.number_input("Number of Transformer Layers", value=9)
         dropout = c2.number_input("Dropout Rate", value=0.0)
-        dim_intensity = c3.text_input("Dimensionality for Encoding Peak Intensity", value="")
+        dim_intensity = c3.text_input(
+            "Dimensionality for Encoding Peak Intensity", value="")
         c1, c2, c3 = st.columns(3)
         max_length = c1.number_input("Max Decoded Peptide Length", value=100)
         warmup_iters = c2.number_input("Warmup Iterations", value=100000)
-        cosine_schedule_period_iters = c3.number_input("Cosine Schedule Period Iterations", value=600000)
+        cosine_schedule_period_iters = c3.number_input(
+            "Cosine Schedule Period Iterations", value=600000)
         c1, c2, c3 = st.columns(3)
         learning_rate = c1.number_input("Learning Rate", value=5e-4)
         weight_decay = c2.number_input("Weight Decay", value=1e-5)
-        train_label_smoothing = c3.number_input("Train Label Smoothing", value=0.01)
+        train_label_smoothing = c3.number_input(
+            "Train Label Smoothing", value=0.01)
 
     with tabs[5]:
         c1, c2, c3 = st.columns(3)
         train_batch_size = c1.number_input("Training Batch Size", value=32)
         max_epochs = c2.number_input("Max Training Epochs", value=30)
-        num_sanity_val_steps = c3.number_input("Number of Sanity Validation Steps", value=0)
-        calculate_precision = st.checkbox("Calculate Precision During Training", value=False)
+        num_sanity_val_steps = c3.number_input(
+            "Number of Sanity Validation Steps", value=0)
+        calculate_precision = st.checkbox(
+            "Calculate Precision During Training", value=False)
 
     with tabs[6]:
         residue_df = pd.DataFrame({
@@ -145,7 +163,8 @@ def create_entry():
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True):
-        yaml_config = yaml.dump(config, default_flow_style=False, sort_keys=False)
+        yaml_config = yaml.dump(
+            config, default_flow_style=False, sort_keys=False)
 
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(yaml_config.encode())
@@ -160,14 +179,15 @@ def create_entry():
             tags=tags
         )
 
-        get_database_session().config_manager.add_file(tmp_path, metadata)
+        get_database_session().config_manager.add_file(
+            tmp_path, metadata, True, get_current_user()["id"])
         st.rerun()
 
     if c2.button("Cancel", use_container_width=True):
         st.rerun()
 
 
-@st.experimental_dialog("Add Config")
+@st.dialog("Add Config")
 def add_option():
     uploaded_file = st.file_uploader("Upload Config", type='yaml')
 
@@ -176,12 +196,15 @@ def add_option():
         base_file_name, file_extension = os.path.splitext(uploaded_file.name)
         file_extension = file_extension.lstrip(".")
         c1, c2 = st.columns([7, 2])
-        file_name = c1.text_input("File Name", value=base_file_name, disabled=False)
-        file_type = c2.text_input("File Type", value=file_extension, disabled=True)
+        file_name = c1.text_input(
+            "File Name", value=base_file_name, disabled=False)
+        file_type = c2.text_input(
+            "File Type", value=file_extension, disabled=True)
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = sorted(list(set([tag.strip() for tag in st.text_input("Tags (comma-separated)").split(",") if tag])))
+        tags = sorted(list(set([tag.strip() for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag])))
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=not uploaded_file):
@@ -198,24 +221,28 @@ def add_option():
             tags=tags
         )
 
-        get_database_session().config_manager.add_file(tmp_path, metadata)
+        get_database_session().config_manager.add_file(
+            tmp_path, metadata, get_current_user()["id"])
         st.rerun()
 
     if c2.button("Cancel", use_container_width=True):
         st.rerun()
 
 
-@st.experimental_dialog("Edit Config Metadata")
+@st.dialog("Edit Config Metadata")
 def edit_option(entry: ConfigFileMetadata):
     st.subheader("Config Metadata", divider='blue')
 
     c1, c2 = st.columns([7, 2])
-    entry.file_name = c1.text_input("File Name", value=entry.file_name, disabled=False)
-    entry.file_type = c2.text_input("File Type", value=entry.file_type, disabled=True)
+    entry.file_name = c1.text_input(
+        "File Name", value=entry.file_name, disabled=False)
+    entry.file_type = c2.text_input(
+        "File Type", value=entry.file_type, disabled=True)
 
     entry.description = st.text_area("Description", value=entry.description)
     entry.date = st.date_input("Date", value=entry.date)
-    entry.tags = sorted(list(set([tag.strip() for tag in st.text_input("Tags (comma-separated)", value=",".join(entry.tags)).split(",") if tag])))
+    entry.tags = sorted(list(set([tag.strip() for tag in st.text_input(
+        "Tags (comma-separated)", value=",".join(entry.tags)).split(",") if tag])))
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True):
@@ -232,19 +259,28 @@ def run():
     c1, c2 = st.columns([5, 3])
     c1.title(f"Config")
 
+    with st.sidebar:
+        display_login_ui()
+
+    user_data = get_current_user()
+
+    if user_data is None:
+        st.warning("Please log in to access this page.")
+        return
+
     db = get_database_session()
     manager = db.config_manager
 
-    # Streamlit app layout
 
     # Get all file metadata entries
-    entries = manager.get_all_metadata()
+    entries = manager.get_all_metadata(user_data["id"])
     entries = map(lambda e: e.dict(), entries)
     df = pd.DataFrame(entries)
 
     if df.empty:
         st.write("No entries found.")
-        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags"])
+        df = pd.DataFrame(
+            columns=["file_id", "file_name", "description", "date", "tags"])
 
     rename_map = {
         "file_id": "ID",
@@ -262,7 +298,8 @@ def run():
 
     selection = st.dataframe(df,
                              hide_index=True,
-                             column_order=["Name", "Description", "Date", "Tags"],
+                             column_order=[
+                                 "Name", "Description", "Date", "Tags"],
                              column_config={
                                  "Name": st.column_config.TextColumn(disabled=True, width='medium'),
                                  "Description": st.column_config.TextColumn(disabled=True, width='medium'),
@@ -274,7 +311,8 @@ def run():
                              use_container_width=True)
 
     selected_rows = selection['selection']['rows']
-    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else []
+    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else [
+    ]
 
     c1, c2, c3, c4, c5, c6, c7, c8 = c2.columns(8)
 

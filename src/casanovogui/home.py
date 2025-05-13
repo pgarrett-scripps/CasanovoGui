@@ -7,17 +7,20 @@ import requests
 import streamlit as st
 import torch
 
-from simple_db import ModelFileMetadata, ConfigFileMetadata, SpectraFileMetadata
+from advanced_db import ModelFileMetadata, ConfigFileMetadata, SpectraFileMetadata
 from utils import get_database_session, get_storage_path
+from login import display_login_ui, get_current_user
 
 db = get_database_session()
 
 st.title("Casanovo Gui")
 
-st.markdown("Welcome to the Casanovo Gui. This is a simple web interface to interact with Casanovo.")
+st.markdown(
+    "Welcome to the Casanovo Gui. This is a simple web interface to interact with Casanovo.")
 
 st.subheader("Database", divider='blue')
-st.caption("The database is used to store all the files and metadata used by Casanovo.")
+st.caption(
+    "The database is used to store all the files and metadata used by Casanovo.")
 st.write(f'{get_storage_path()}')
 
 st.subheader("GPU Availability", divider='blue')
@@ -36,7 +39,17 @@ st.write(db.current_task)
 st.caption("Queued Tasks")
 st.write(db.get_queued_tasks())
 
+
+with st.sidebar:
+    display_login_ui()
+
+user_data = get_current_user()
+
+
 st.header("Add Default Data")
+if user_data is None:
+    st.warning("Please log in to access this page.")
+    st.stop()
 
 
 def download_file(url, filename):
@@ -53,6 +66,7 @@ def get_128_spectra():
     if not os.path.exists('sample_preprocessed_spectra.mgf'):
         download_file(url, 'sample_preprocessed_spectra.mgf')
 
+
 def get_2_spectra():
     get_128_spectra()
 
@@ -63,9 +77,7 @@ def get_2_spectra():
             f2.writelines(lines[:81])
 
 
-
-
-@st.experimental_fragment
+@st.fragment
 def default_spectra():
     st.subheader("Spectra", divider='blue')
 
@@ -85,7 +97,8 @@ def default_spectra():
             instrument='Unknown',
             annotated=True,
         )
-        db.spectra_files_manager.add_file('sample_preprocessed_2spectra.mgf', metadata, copy=True)
+        db.spectra_files_manager.add_file(
+            'sample_preprocessed_2spectra.mgf', metadata, copy=True, owner_id=user_data['id'])
         st.toast("Spectra added successfully", icon="✅")
 
     if c2.button('128 spectra mgf', use_container_width=True):
@@ -100,14 +113,15 @@ def default_spectra():
             instrument='Unknown',
             annotated=True,
         )
-        db.spectra_files_manager.add_file('sample_preprocessed_spectra.mgf', metadata, copy=True)
+        db.spectra_files_manager.add_file(
+            'sample_preprocessed_spectra.mgf', metadata, copy=True, owner_id=user_data['id'])
         st.toast("Spectra added successfully", icon="✅")
 
 
 default_spectra()
 
 
-@st.experimental_fragment
+@st.fragment
 def default_models():
     st.subheader('Models', divider='blue')
     nontryptic_link = 'https://github.com/Noble-Lab/casanovo/releases/download/v4.0.0/casanovo_nontryptic.ckpt'
@@ -133,7 +147,8 @@ def default_models():
             status='completed',
             config=None,
         )
-        db.models_manager.add_file(tmp_path, metadata, copy=False)
+        db.models_manager.add_file(
+            tmp_path, metadata, copy=False, owner_id=user_data['id'])
         st.toast("Model added successfully", icon="✅")
 
     if c2.button('Default Nontryptic Model', use_container_width=True):
@@ -156,14 +171,15 @@ def default_models():
             config=None,
         )
 
-        db.models_manager.add_file(tmp_path, metadata, copy=False)
+        db.models_manager.add_file(
+            tmp_path, metadata, copy=False, owner_id=user_data['id'])
         st.toast("Model added successfully", icon="✅")
 
 
 default_models()
 
 
-@st.experimental_fragment
+@st.fragment
 def default_config():
     st.subheader("Config", divider='blue')
     if st.button("Default Config", use_container_width=True):
@@ -187,7 +203,8 @@ def default_config():
 
         print(metadata)
 
-        db.config_manager.add_file(tmp_path, metadata, copy=False)
+        db.config_manager.add_file(tmp_path, metadata, copy=False,
+                                   owner_id=user_data['id'])
         st.toast("Config added successfully", icon="✅")
 
 

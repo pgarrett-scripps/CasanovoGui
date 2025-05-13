@@ -6,12 +6,13 @@ from datetime import date
 import streamlit as st
 import pandas as pd
 
+from login import display_login_ui, get_current_user
 from dialogs import download_option, tag_option, view_option, delete_option
 from simple_db import ModelFileMetadata
 from utils import get_database_session, filter_by_tags, get_config_filename
 
 
-@st.experimental_dialog("Train Model", width='large')
+@st.dialog("Train Model", width='large')
 def train_option():
     # select multiple annotated files
 
@@ -26,29 +27,42 @@ def train_option():
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = [tag for tag in st.text_input("Tags (comma-separated)").split(",") if tag]
+        tags = [tag for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag]
 
     with t2:
         st.caption("Select annotated spectra to train the model.")
-        spectra_metadata = get_database_session().spectra_files_manager.get_all_metadata()
+        spectra_metadata = get_database_session(
+        ).spectra_files_manager.get_all_metadata(get_current_user()['id'])
 
-        spectra_df = pd.DataFrame(map(lambda e: e.dict(), spectra_metadata))
-        if len(spectra_df) > 0:
+        if spectra_metadata:
+            spectra_df = pd.DataFrame(
+                map(lambda e: e.model_dump(), spectra_metadata))
             spectra_df = spectra_df[spectra_df['annotated'] == True]
+        else:
+            spectra_df = pd.DataFrame(columns=['file_id', 'annotated', 'tags'])
 
-        spectra_df = filter_by_tags(spectra_df, 'tags', key='Dialog_Model_Spectra_Filter')
+        spectra_df = filter_by_tags(
+            spectra_df, 'tags', key='Dialog_Model_Spectra_Filter')
 
-        selection = st.dataframe(spectra_df, on_select='rerun', selection_mode='multi-row', use_container_width=True)
+        selection = st.dataframe(spectra_df, on_select='rerun',
+                                 selection_mode='multi-row', use_container_width=True)
         selected_rows = list(selection['selection']['rows'])
-        selected_spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist()
+        selected_spectra_ids = spectra_df.iloc[selected_rows]['file_id'].tolist(
+        )
 
     with t3:
         st.caption("Select a config file to train the model.")
-        config_metadata = get_database_session().config_manager.get_all_metadata()
-        config_df = pd.DataFrame(map(lambda e: e.dict(), config_metadata))
-        config_df = filter_by_tags(config_df, 'tags', key='Dialog_Model_Config_Filter')
-        selection = st.dataframe(config_df, on_select='rerun', selection_mode='single-row', use_container_width=True)
-        selected_row = selection['selection']['rows'][0] if len(selection['selection']['rows']) > 0 else None
+        config_metadata = get_database_session(
+        ).config_manager.get_all_metadata(get_current_user()['id'])
+        config_df = pd.DataFrame(map(lambda e: e.model_dump(
+        ), config_metadata)) if config_metadata else pd.DataFrame(columns=['file_id', 'tags'])
+        config_df = filter_by_tags(
+            config_df, 'tags', key='Dialog_Model_Config_Filter')
+        selection = st.dataframe(config_df, on_select='rerun',
+                                 selection_mode='single-row', use_container_width=True)
+        selected_row = selection['selection']['rows'][0] if len(
+            selection['selection']['rows']) > 0 else None
         selected_config = config_df.iloc[selected_row]['file_id'] if selected_row is not None else None
 
     if not selected_spectra_ids:
@@ -79,7 +93,7 @@ def train_option():
         st.rerun()
 
 
-@st.experimental_dialog("Add Model")
+@st.dialog("Add Model")
 def add_option():
     uploaded_file = st.file_uploader("Upload Model", type=['ckpt'])
 
@@ -88,12 +102,15 @@ def add_option():
         base_file_name, file_extension = os.path.splitext(uploaded_file.name)
         file_extension = file_extension.lstrip(".")
         c1, c2 = st.columns([7, 2])
-        file_name = c1.text_input("File Name", value=base_file_name, disabled=False)
-        file_type = c2.text_input("File Type", value=file_extension, disabled=True)
+        file_name = c1.text_input(
+            "File Name", value=base_file_name, disabled=False)
+        file_type = c2.text_input(
+            "File Type", value=file_extension, disabled=True)
 
         description = st.text_area("Description")
         date_input = st.date_input("Date", value=date.today())
-        tags = sorted(list(set([tag.strip() for tag in st.text_input("Tags (comma-separated)").split(",") if tag])))
+        tags = sorted(list(set([tag.strip() for tag in st.text_input(
+            "Tags (comma-separated)").split(",") if tag])))
 
     c1, c2 = st.columns([1, 1])
     if c1.button("Submit", type='primary', use_container_width=True, disabled=not uploaded_file):
@@ -113,20 +130,23 @@ def add_option():
             config=None,
         )
 
-        get_database_session().models_manager.add_file(tmp_path, metadata)
+        get_database_session().models_manager.add_file(
+            tmp_path, metadata, True, get_current_user()['id'])
         st.rerun()
 
     if c2.button("Cancel", use_container_width=True):
         st.rerun()
 
 
-@st.experimental_dialog("Edit Model Metadata")
+@st.dialog("Edit Model Metadata")
 def edit_option(entry: ModelFileMetadata):
     st.subheader("Model Metadata", divider='blue')
 
     c1, c2 = st.columns([7, 2])
-    entry.file_name = c1.text_input("File Name", value=entry.file_name, disabled=False)
-    entry.file_type = c2.text_input("File Type", value=entry.file_type, disabled=True)
+    entry.file_name = c1.text_input(
+        "File Name", value=entry.file_name, disabled=False)
+    entry.file_type = c2.text_input(
+        "File Type", value=entry.file_type, disabled=True)
 
     entry.description = st.text_area("Description", value=entry.description)
     entry.date = st.date_input("Date", value=entry.date)
@@ -151,17 +171,27 @@ def run():
     st.caption('Default models can be downloaded from the home page. Otherwise models can be uploaded or trained. '
                'See available models at https://github.com/Noble-Lab/casanovo/releases.')
 
+    with st.sidebar:
+        display_login_ui()
+
+    user_data = get_current_user()
+
+    if user_data is None:
+        st.warning("Please log in to access this page.")
+        return
+
     db = get_database_session()
     manager = db.models_manager
 
     # Get all file metadata entries
-    entries = manager.get_all_metadata()
+    entries = manager.get_all_metadata(user_data['id'])
     entries = map(lambda e: e.dict(), entries)
     df = pd.DataFrame(entries)
 
     if df.empty:
         st.write("No entries found.")
-        df = pd.DataFrame(columns=["file_id", "file_name", "description", "date", "tags", "source", "status", "config"])
+        df = pd.DataFrame(columns=[
+                          "file_id", "file_name", "description", "date", "tags", "source", "status", "config"])
 
     rename_map = {
         "file_id": "ID",
@@ -188,7 +218,8 @@ def run():
     # Display the editable dataframe
     selection = st.dataframe(df,
                              hide_index=True,
-                             column_order=["Name", "Description", "Date", "Tags", "Source", "Status", "Config"],
+                             column_order=["Name", "Description", "Date",
+                                           "Tags", "Source", "Status", "Config"],
                              column_config={
                                  "Name": st.column_config.TextColumn(disabled=True, width='medium'),
                                  "Description": st.column_config.TextColumn(disabled=True, width='medium'),
@@ -203,7 +234,8 @@ def run():
                              on_select='rerun')
 
     selected_rows = selection['selection']['rows']
-    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else []
+    selected_ids = df.iloc[selected_rows]["ID"].tolist() if selected_rows else [
+    ]
 
     c1, c2, c3, c4, c5, c6, c7, c8 = c2.columns(8)
 
