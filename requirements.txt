@@ -8,3 +8,4 @@ pydantic==2.7.0
 casanovo==4.2.0
 peptacular==2.1.0
 platformdirs==4.2.2
+sqlalchemy
